@@ -1,6 +1,8 @@
 import pygame.camera
 import pygame.image
 import time
+import numpy as np
+from pygame.locals import *
 
 class Capture(object):
 	def __init__(self):
@@ -12,7 +14,7 @@ class Capture(object):
 		# this is the same as what we saw before
 		self.clist = pygame.camera.list_cameras()
 		if not self.clist:
-			raise ValueError("Sorry, no cameras detected.")
+			raise ValueError('Sorry, no cameras detected.')
 		self.cam = pygame.camera.Camera(self.clist[0], self.size)
 		self.cam.start()
 		
@@ -22,23 +24,43 @@ class Capture(object):
 
 	def get_and_flip(self):
 		self.snapshot = self.cam.get_image(self.snapshot)
+		#pygame.camera.colorspace(self.snapshot, 'HSV', self.snapshot)
+		pxarray = pygame.PixelArray(self.snapshot)
 		hsv	= pygame.camera.colorspace(self.snapshot, 'HSV')
 		# threshold against the color we got before
-		mask = pygame.mask.from_threshold(hsv, (255,255,128), (16, 128, 128))
+		#mask = pygame.mask.from_threshold(self.snapshot, (255,255,128), (16, 128, 128))
+		mask = pygame.mask.from_threshold(hsv, self.ccolor, (20, 64, 64))
 		# find blobs
-		connected = mask.connected_components()
+		connected = mask.connected_components(30)
 		if True:# update screen?
-			# display image
+			for ball in connected:
+				for px in ball.outline():
+					pxarray[px] = (0,255,0)
+			del pxarray
 			self.display.blit(self.snapshot,(0,0))
-			for mask in connected:
-				for pix in mask.outline():
-					pygame.draw.circle(self.display, (0,255,0), pix, 1)
-			# make sure the blob is big enough that it isn't just noise
-			#if connected[0].count() > 10:
-			#	# find the center of the blob
-			#	# draw a circle with size variable on the size of the blob
-			#	pygame.draw.circle(self.display, (0,0,255), connected[0].centroid(), 10)
 			pygame.display.flip()
+			
+	def calibrate(self):
+		calibrate_surf = pygame.surface.Surface(self.size, 0, self.display)
+		# capture the image
+		going = True
+		while going:
+			calibrate_surf = self.cam.get_image(calibrate_surf)
+			hsv	= pygame.camera.colorspace(calibrate_surf, 'HSV')
+			# pygame.camera.colorspace(calibrate_surf, "HSV", calibrate_surf)
+			# blit it to the display surface
+			self.display.blit(calibrate_surf, (0,0))
+			# make a rect in the middle of the screen
+			crect = pygame.draw.rect(self.display, (255,0,0), (320,240,30,30), 4)
+			# get the average color of the area inside the rect
+			self.ccolor = pygame.transform.average_color(hsv, crect)
+			# update
+			pygame.display.flip()
+			
+			events = pygame.event.get()
+			for e in events:
+				if e.type == KEYDOWN and e.key == K_SPACE:
+					going = False
 
 	def main(self):
 		going = True
@@ -47,7 +69,7 @@ class Capture(object):
 		while going:
 			events = pygame.event.get()
 			for e in events:
-				if e.type == 12:
+				if e.type == 12 or (e.type == KEYDOWN and e.key == K_SPACE):
 					# close the camera safely
 					self.cam.stop()
 					pygame.camera.quit()
@@ -61,4 +83,5 @@ class Capture(object):
 				timea	= timeb
             
 doit = Capture()
+doit.calibrate()
 doit.main()
