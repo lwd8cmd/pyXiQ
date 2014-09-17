@@ -83,5 +83,7 @@ class Capture(object):
 				timea	= timeb
             
 doit = Capture()
+print('Press SPACE to CALIBRATE')
 doit.calibrate()
+print('Press SPACE to EXIT')
 doit.main()
