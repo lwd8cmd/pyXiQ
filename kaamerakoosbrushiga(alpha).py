@@ -50,10 +50,12 @@ def eelmised_varvid():
 	try:
 		maxs = maxse.pop()
 		mins = minse.pop()
-
+	except:
+		print "bla"
 
 cv2.namedWindow('tava')
 cv2.setMouseCallback('tava', choose_color)
+
 while(True):
     # Capture frame-by-frame
 	ret, frame = cap.read()
