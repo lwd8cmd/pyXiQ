@@ -13,7 +13,6 @@ maxs = np.array([0,0,0])
 #eelnev vaartus
 minse = []
 maxse = []
-jarjekord = 0
 
 
 cv2.createTrackbar('brush_size','image',1,10, nothing)
