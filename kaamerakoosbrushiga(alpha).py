@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import cPickle as pickle
 
 def nothing(x):
 	pass
@@ -8,8 +9,12 @@ drawing = False # true if mouse is pressed
 ix,iy = -1,-1
 cap = cv2.VideoCapture(0)
 cv2.namedWindow('image')
-mins = np.array([255,255,255])
-maxs = np.array([0,0,0])
+try:
+	mins = pickle.load(open("mins.p", "rb"))
+	maxs = pickle.load(open("maxs.p", "rb"))
+except:
+	mins = np.array([255,255,255])
+	maxs = np.array([0,0,0])
 #eelnev vaartus
 minse = []
 maxse = []
@@ -17,18 +22,6 @@ maxse = []
 
 cv2.createTrackbar('brush_size','image',1,10, nothing)
 cv2.createTrackbar('vahe','image',0,50, nothing)
-#ei lase varvidel alla 0 ja yle 255 minna
-def pixel_min_value(arv1,arv2):
-	if arv1-arv2 > 0:
-		return arv1-arv2
-	else:
-		return 0
-
-def pixel_max_value(arv1,arv2):
-	if arv1+arv2 <255:
-		return arv1+arv2
-	else:
-		return 255
 
 
 # mouse callback function
@@ -51,7 +44,8 @@ def eelmised_varvid():
 		maxs = maxse.pop()
 		mins = minse.pop()
 	except:
-		print "bla"
+		mins = np.array([255,255,255])
+		maxs = np.array([0,0,0])
 
 cv2.namedWindow('tava')
 cv2.setMouseCallback('tava', choose_color)
@@ -70,9 +64,11 @@ while(True):
 	cv2.imshow('mask', mask)
 	k = cv2.waitKey(1) & 0xFF
 	if k == ord('q'):
+		pickle.dump(mins, open("mins.p", "wb"))
+		pickle.dump(maxs, open("maxs.p", "wb"))
 		break
 	elif k == ord('e'):
-		eelmised_varvid()
+			eelmised_varvid()
 # When everything done, release the capture
 cap.release()
 cv2.destroyAllWindows()
