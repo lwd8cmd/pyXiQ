@@ -16,8 +16,8 @@ p = 0
 try:
 	mins, maxs= pickle.load(open("vaartused.p", "rb"))
 except:
-	mins = np.array([255,255,255],[255,255,255],[255,255,255])
-	maxs = np.array([0,0,0],[0,0,0],[0,0,0])
+	mins = np.array([[255,255,255],[255,255,255],[255,255,255]])
+	maxs = np.array([[0,0,0],[0,0,0],[0,0,0]])
 
 
 cv2.createTrackbar('brush_size','image',1,10, nothing)
@@ -61,8 +61,8 @@ while(True):
 	vahe = cv2.getTrackbarPos('brush_size','image')
 
     # Display the resulting frame
-	mask = cv2.inRange(hsv, mins, maxs)
 	median = cv2.medianBlur(hsv,5)
+	mask = cv2.inRange(hsv, mins[p], maxs[p])
 
 
 	cv2.imshow('tava', median)
@@ -73,11 +73,13 @@ while(True):
 		break
 	elif k == ord('p'):
 		p = 0
+		print(p)
 	elif k == ord('y'):
 		p = 1
-	
+		print(p)
 	elif k == ord('b'):
 		p = 2
+		print(p)
 	elif k == ord('s'):
 		pickle.dump([mins,maxs], open("vaartused.p", "wb"))
 		print("Salvestasin vaartused")
