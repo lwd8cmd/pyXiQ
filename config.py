@@ -6,7 +6,6 @@ from matplotlib import pyplot as plt
 def nothing(x):
 	pass
 
-drawing = False # true if mouse is pressed
 cap = cv2.VideoCapture(0)
 cv2.namedWindow('image')
 #eelnev vaartus
@@ -14,7 +13,7 @@ minse = [[],[],[]]
 maxse = [[],[],[]]
 p = 0
 try:
-	mins, maxs= pickle.load(open("vaartused.p", "rb"))
+	mins, maxs= pickle.load(open("varvid.p", "rb"))
 except:
 	mins = np.array([[255,255,255],[255,255,255],[255,255,255]])
 	maxs = np.array([[0,0,0],[0,0,0],[0,0,0]])
@@ -26,7 +25,7 @@ cv2.createTrackbar('vahe','image',0,50, nothing)
 
 # mouse callback function
 def choose_color(event,x,y,flags,param):
-	global mins, maxs, minse, maxse
+	global mins, maxs, minse, maxse, p, brush_size, vahe
 
 	if event == cv2.EVENT_LBUTTONDOWN:
 		nx = brush_size
@@ -39,7 +38,7 @@ def choose_color(event,x,y,flags,param):
 
 #kustutab viimased maxid minid
 def eelmised_varvid():
-	global maxs, maxse, mins, minse
+	global maxs, maxse, mins, minse, p
 	try:
 		maxs[p] = maxse[p].pop()
 		mins[p] = minse[p].pop()
@@ -73,16 +72,12 @@ while(True):
 		break
 	elif k == ord('p'):
 		p = 0
-		print(p)
 	elif k == ord('y'):
 		p = 1
-		print(p)
 	elif k == ord('b'):
 		p = 2
-		print(p)
 	elif k == ord('s'):
-		pickle.dump([mins,maxs], open("vaartused.p", "wb"))
-		print("Salvestasin vaartused")
+		pickle.dump([mins,maxs], open("varvid.p", "wb"))
 	elif k == ord('e'):
 			eelmised_varvid()
 # When everything done, release the capture
