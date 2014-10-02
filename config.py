@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import cPickle as pickle
-from matplotlib import pyplot as plt
+
 
 def nothing(x):
 	pass
@@ -13,7 +13,7 @@ minse = [[],[],[]]
 maxse = [[],[],[]]
 p = 0
 try:
-	mins, maxs= pickle.load(open("varvid.p", "rb"))
+	mins, maxs= pickle.load(open("colors.p", "rb"))
 except:
 	mins = np.array([[255,255,255],[255,255,255],[255,255,255]])
 	maxs = np.array([[0,0,0],[0,0,0],[0,0,0]])
@@ -31,8 +31,8 @@ def choose_color(event,x,y,flags,param):
 		nx = brush_size
 		ny = brush_size
 		pixs=hsv[y-ny:y+ny,x-nx:x+nx,:] 
-		minse[p].append(mins[p])
-		maxse[p].append(maxs[p])
+		minse[p].append(mins[p].copy())
+		maxse[p].append(maxs[p].copy())
 		mins[p]=np.minimum(mins[p], pixs.min(0).min(0) - vahe).clip(0, 255).astype('uint8')
 		maxs[p]=np.maximum(maxs[p], pixs.max(0).max(0) + vahe).clip(0, 255).astype('uint8')
 
@@ -77,7 +77,7 @@ while(True):
 	elif k == ord('b'):
 		p = 2
 	elif k == ord('s'):
-		pickle.dump([mins,maxs], open("varvid.p", "wb"))
+		pickle.dump([mins,maxs], open("colors.p", "wb"))
 	elif k == ord('e'):
 			eelmised_varvid()
 # When everything done, release the capture
