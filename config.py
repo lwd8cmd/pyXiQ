@@ -30,7 +30,7 @@ def choose_color(event,x,y,flags,param):
 	if event == cv2.EVENT_LBUTTONDOWN:
 		nx = brush_size
 		ny = brush_size
-		pixs=hsv[y-ny:y+ny,x-nx:x+nx,:] 
+		pixs=yuv[y-ny:y+ny,x-nx:x+nx,:] 
 		minse[p].append(mins[p].copy())
 		maxse[p].append(maxs[p].copy())
 		mins[p]=np.minimum(mins[p], pixs.min(0).min(0) - vahe).clip(0, 255).astype('uint8')
@@ -53,18 +53,18 @@ print("V2ljumiseks vajutada t2hte 'q', v22rtuste salvestamiseks 's', palli seade
 
 while(True):
     # Capture frame-by-frame
-	ret, frame = cap.read()
+	ret, yuv = cap.read()
 	
-	hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV) 
+	#hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV) 
 	brush_size =cv2.getTrackbarPos('brush_size','image')
 	vahe = cv2.getTrackbarPos('brush_size','image')
 
     # Display the resulting frame
-	median = cv2.medianBlur(hsv,5)
-	mask = cv2.inRange(hsv, mins[p], maxs[p])
+	blurred = cv2.GaussianBlur(yuv,(15,15),0)
+	mask = cv2.inRange(blurred, mins[p], maxs[p])
 
 
-	cv2.imshow('tava', median)
+	cv2.imshow('tava', blurred)
 	cv2.imshow('mask', mask)
 	k = cv2.waitKey(1) & 0xFF
 
