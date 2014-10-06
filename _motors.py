@@ -36,7 +36,7 @@ class Motors(threading.Thread):
 					try:
 						connection.write('?\n')
 						id_string = connection.readline()
-						if id_string == '<id:':
+						if id_string[:4] == '<id:':
 							id_nr = int(id_string[4])
 							self.motors[id_nr - 1] = connection
 							print('motors: motor ' + str(id_nr) + ' at port ' + str(port_nr))
