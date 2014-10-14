@@ -52,17 +52,23 @@ class Motors(threading.Thread):
 	
 	def close(self):
 		for motor in self.motors:
+			motor.write('sd0\n')
 			motor.close()
 	
 	def move(self, speed, direction, omega):
 		self.speed	= speed
 		self.direction	= direction
 		self.angular_velocity	= omega
-		r = 0.1#ratta raadius
-		l = 0.3#ratta kaugus roboti keskpunktist
-		self.sd1 = int(round(-speed*np.sin(direction)/(2*r) - np.sqrt(3)*speed*np.cos(direction)/(2*r) - l*omega/r));#esimese ratta kiirus
-		self.sd2 = int(round(-speed*np.sin(direction)/(2*r) + np.sqrt(3)*speed*np.cos(direction)/(2*r) - l*omega/r));#teise ratta kiirus
-		self.sd3 = int(round(speed*np.sin(direction)/r - l*omega/r));#kolmanda ratta kiirus
+		#r = 0.1#ratta raadius
+		#l = 0.3#ratta kaugus roboti keskpunktist
+		#self.sd1 = int(round(-speed*np.sin(direction)/(2*r) - np.sqrt(3)*speed*np.cos(direction)/(2*r) - l*omega/r));#esimese ratta kiirus
+		#self.sd2 = int(round(-speed*np.sin(direction)/(2*r) + np.sqrt(3)*speed*np.cos(direction)/(2*r) - l*omega/r));#teise ratta kiirus
+		#self.sd3 = int(round(speed*np.sin(direction)/r - l*omega/r));#kolmanda ratta kiirus
+		
+		speed*=10
+		self.sd1 = int(round(speed*np.sin(direction-2*np.pi/3) - omega));#esimese ratta kiirus
+		self.sd2 = int(round(speed*np.sin(direction+2*np.pi/3) - omega));#teise ratta kiirus
+		self.sd3 = int(round(speed*np.sin(direction) - omega));#kolmanda ratta kiirus
 		
 	def update(self):
 		if not self.is_opened:

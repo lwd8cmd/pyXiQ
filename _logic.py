@@ -4,10 +4,12 @@
 
 import _cam
 import time
+import numpy as np
 
 class Logic(_cam.Cam):
-	def __init__(self):
+	def __init__(self, motors):
 		super(Logic, self).__init__()
+		self.motors	= motors
 		self.state	= 0
 		self.state_names	= {
 			0 : 'manuaalne',
@@ -27,8 +29,20 @@ class Logic(_cam.Cam):
 		pass
 		
 	def f_follow_ball(self):
-		#follow largest blob
-		pass
+		max_area	= 0
+		largest_ball	= None
+		print(len(self.frame_balls))
+		for ball in self.frame_balls:
+			if ball[4] > max_area:
+				max_area = ball[4]
+				largest_ball = ball
+		
+		if largest_ball is not None:
+			x	= largest_ball[0] + largest_ball[2] / 2
+			self.motors.move(2, (x - 320) * 70 * np.pi / 180 / 640, 0)
+		else:
+			self.motors.move(0, 0, 0)
+		self.motors.update()
 		
 	def f_kick_ball(self):
 		#find gate, aim, shoot
@@ -71,4 +85,5 @@ class Logic(_cam.Cam):
 				self.fps	= str(int(round(60 / (timeb - timea))))
 				timea	= timeb
 		print('logic: close thread')
+		self.motors.run_it	= False
 		self.close()

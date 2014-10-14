@@ -10,14 +10,14 @@ import _logic
 use_UI	= True
 
 motors = _motors.Motors()
-logic = _logic.Logic()
+logic = _logic.Logic(motors)
 
 motors.start()
 logic.start()
 
 if use_UI:
 	import _UI
-	UI = _UI.UI(motors, logic)
+	UI = _UI.UI(logic)
 	UI.run()
 	
 else:
@@ -27,6 +27,5 @@ else:
 			time.sleep(1)
 		except KeyboardInterrupt:
 			print('Ctrl-c received! Killing threads.')
-			motors.run_it	= False
 			logic.run_it	= False
 			break

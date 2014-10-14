@@ -8,8 +8,7 @@ import threading
 import cv2
 
 class UI(object):
-	def __init__(self, motors, logic):
-		self.motors	= motors
+	def __init__(self, logic):
 		self.logic	= logic
 		self.logic.UI	= True
 		pygame.init()
@@ -52,63 +51,78 @@ class UI(object):
 				elif event.type == pygame.KEYDOWN:
 					if event.key == pygame.K_ESCAPE:
 						running = False
+						break
 					elif event.key == pygame.K_a:
+						self.logic.state	= 0
 						speed		= 1
 						direction	= -np.pi/2
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_d:
+						self.logic.state	= 0
 						speed		= 1
 						direction	= np.pi/2
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_w:
+						self.logic.state	= 0
 						speed		= 1
 						direction	= 0
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_s:
+						self.logic.state	= 0
 						speed		= 1
 						direction	= np.pi
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_q:
+						self.logic.state	= 0
 						speed		= 1
 						direction	= -np.pi/4
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_e:
+						self.logic.state	= 0
 						speed		= 1
 						direction	= np.pi/4
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_n:
+						self.logic.state	= 0
 						speed		= 0
 						direction	= 0
 						omega		= -1
 						no_key 		= 0
 					elif event.key == pygame.K_m:
+						self.logic.state	= 0
 						speed		= 0
 						direction	= 0
 						omega		= 1
 						no_key 		= 0
 					elif event.key == pygame.K_x:
+						self.logic.state	= 0
 						speed		= 0
 						direction	= 0
 						omega		= 0
 						no_key 		= 0
-			#set speed
-			self.motors.move(speed*3, direction, omega*5)
-			self.motors.update()
+					elif event.key == pygame.K_p:
+						self.logic.state	= 2
+						
+			if not running:
+				break
+			if self.logic.state == 0:#set speed
+				self.logic.motors.move(speed*3, direction, omega*5)
+				self.logic.motors.update()
 			
 			#draw bg
 			self.screen.blit(self.background, (0, 0))
 			
 			#draw velocity info (bottom right)
-			tmp_om	= self.motors.angular_velocity / 5
+			tmp_om	= self.logic.motors.angular_velocity / 5
 			pygame.draw.line(self.screen, self.WHITE, (305, 314), (
-				305 + np.sin(self.motors.direction)*self.motors.speed*10,
-				314 - np.cos(self.motors.direction)*self.motors.speed*10), 1)
+				305 + np.sin(self.logic.motors.direction)*self.logic.motors.speed*10,
+				314 - np.cos(self.logic.motors.direction)*self.logic.motors.speed*10), 1)
 			radius	= 64
 			if tmp_om > 0:
 				pygame.draw.arc(self.screen, self.WHITE, [305-radius, 314-radius, 2*radius, 2*radius], np.pi/2 - tmp_om, np.pi/2, 1)
@@ -117,13 +131,13 @@ class UI(object):
 				
 			#draw info (bottom left) (motors speed, fps, state)
 			self.screen.blit(self.font.render(
-				self.strint(self.motors.rsd1) + '/' + self.strint(self.motors.sd1),
+				self.strint(self.logic.motors.rsd1) + '/' + self.strint(self.logic.motors.sd1),
 				False, self.WHITE), (40, 251))
 			self.screen.blit(self.font.render(
-				self.strint(self.motors.rsd2) + '/' + self.strint(self.motors.sd2),
+				self.strint(self.logic.motors.rsd2) + '/' + self.strint(self.logic.motors.sd2),
 				False, self.WHITE), (40, 273))
 			self.screen.blit(self.font.render(
-				self.strint(self.motors.rsd3) + '/' + self.strint(self.motors.sd3),
+				self.strint(self.logic.motors.rsd3) + '/' + self.strint(self.logic.motors.sd3),
 				False, self.WHITE), (40, 295))
 			self.screen.blit(self.font.render(self.logic.fps, False, self.WHITE), (40, 317))
 			self.screen.blit(self.font.render(self.logic.state_names[self.logic.state], False, self.WHITE), (40, 339))
@@ -132,8 +146,8 @@ class UI(object):
 			pygame.display.flip()
 			
 			#draw ball boxes
-			for x,y,w,h in self.logic.frame_balls:
-				cv2.rectangle(self.logic.frame, (x,y),(x+w,y+h), (255), 1)
+			#for x,y,w,h,s in self.logic.frame_balls:
+			#	cv2.rectangle(self.logic.frame, (x,y),(x+w,y+h), (255), 1)
 			
 			#show camera feed
 			cv2.imshow('frame', self.logic.frame)
@@ -146,5 +160,4 @@ class UI(object):
 		#clean exit
 		pygame.quit()
 		cv2.destroyAllWindows()
-		self.motors.run_it	= False
 		self.logic.run_it	= False

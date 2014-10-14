@@ -13,7 +13,7 @@ class Cam(threading.Thread):
 		self.run_it	= True
 		self.UI	= False
 		self.frame	= np.zeros((480,640,3))
-		self.frame_balls	= []#balls[]=[x,y,w,h]
+		self.frame_balls	= []#balls[]=[x,y,w,h,area]
 		self.fps	= '0'
 		self.mins, self.maxs = pickle.load(open('colors.p', 'rb'))
 		
@@ -36,10 +36,10 @@ class Cam(threading.Thread):
 		for contour in contours:
 			s	= cv2.contourArea(contour)
 			if s > 30:
-				shape = (x, y, w, h) = cv2.boundingRect(contour)
+				x, y, w, h = cv2.boundingRect(contour)
 				ratio	= w / h
-				if ratio > 0.8 and ratio < 1.2:
-					self.frame_balls.append(shape)
+				#if ratio > 0.8 and ratio < 1.2:
+				self.frame_balls.append([x, y, w, h, s])
 		
 	def analyze_frame(self):
 		_, img = self.cam.read()
