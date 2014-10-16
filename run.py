@@ -12,8 +12,8 @@ use_UI	= True
 motors = _motors.Motors()
 logic = _logic.Logic(motors)
 
-motors.start()
 logic.start()
+motors.start()
 
 if use_UI:
 	import _UI

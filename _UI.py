@@ -17,12 +17,14 @@ class UI(object):
 		self.size = (self.width, self.height) = self.background.get_size()
 		self.screen = pygame.display.set_mode((self.size), pygame.DOUBLEBUF)
 		self.clock = pygame.time.Clock()
-		self.fps = 15
+		self.fps = 10
 		self.playtime = 0.0
 		self.font = pygame.font.SysFont('mono', 16, bold=False)
 		self.GREEN = (0, 255, 0)
 		self.WHITE = (255, 255, 255)
 		self.BLACK = (0, 0, 0)
+		self.RED = (255, 0, 0)
+		self.HFOV	= 30 * np.pi / 180
 		
 	def strint(self, val):
 		return str(int(round(val)))
@@ -54,37 +56,37 @@ class UI(object):
 						break
 					elif event.key == pygame.K_a:
 						self.logic.state	= 0
-						speed		= 1
+						speed		= 20
 						direction	= -np.pi/2
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_d:
 						self.logic.state	= 0
-						speed		= 1
+						speed		= 20
 						direction	= np.pi/2
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_w:
 						self.logic.state	= 0
-						speed		= 1
+						speed		= 20
 						direction	= 0
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_s:
 						self.logic.state	= 0
-						speed		= 1
+						speed		= 20
 						direction	= np.pi
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_q:
 						self.logic.state	= 0
-						speed		= 1
+						speed		= 20
 						direction	= -np.pi/4
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_e:
 						self.logic.state	= 0
-						speed		= 1
+						speed		= 20
 						direction	= np.pi/4
 						omega		= 0
 						no_key 		= 0
@@ -92,13 +94,13 @@ class UI(object):
 						self.logic.state	= 0
 						speed		= 0
 						direction	= 0
-						omega		= -1
+						omega		= -3
 						no_key 		= 0
 					elif event.key == pygame.K_m:
 						self.logic.state	= 0
 						speed		= 0
 						direction	= 0
-						omega		= 1
+						omega		= 3
 						no_key 		= 0
 					elif event.key == pygame.K_x:
 						self.logic.state	= 0
@@ -107,7 +109,7 @@ class UI(object):
 						omega		= 0
 						no_key 		= 0
 					elif event.key == pygame.K_p:
-						self.logic.state	= 2
+						self.logic.state	= 3
 						
 			if not running:
 				break
@@ -142,13 +144,26 @@ class UI(object):
 			self.screen.blit(self.font.render(self.logic.fps, False, self.WHITE), (40, 317))
 			self.screen.blit(self.font.render(self.logic.state_names[self.logic.state], False, self.WHITE), (40, 339))
 
+			#draw robot
+			robot_x	= 185
+			robot_y	= 122
+			robot_angle	= 0
+			pygame.draw.line(self.screen, self.BLACK, (robot_x, robot_y), (
+				robot_x + 150 * np.cos(robot_angle - self.HFOV),
+				robot_y + 150 * np.sin(robot_angle - self.HFOV)), 1)
+			pygame.draw.line(self.screen, self.BLACK, (robot_x, robot_y), (
+				robot_x + 150 * np.cos(robot_angle + self.HFOV),
+				robot_y + 150 * np.sin(robot_angle + self.HFOV)), 1)
+			
+			#draw balls
+			for ball in self.logic.frame_balls:
+				ball_x	= robot_x + ball[0] * np.cos(ball[1])
+				ball_y	= robot_y + ball[0] * np.sin(ball[1])
+				pygame.draw.rect(self.screen, self.RED, (ball_x-1,ball_y-1,3,3), 0)
+			
 			#update pygame screen
 			pygame.display.flip()
-			
-			#draw ball boxes
-			#for x,y,w,h,s in self.logic.frame_balls:
-			#	cv2.rectangle(self.logic.frame, (x,y),(x+w,y+h), (255), 1)
-			
+				
 			#show camera feed
 			cv2.imshow('frame', self.logic.frame)
 			

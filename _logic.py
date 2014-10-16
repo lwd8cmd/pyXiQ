@@ -14,10 +14,11 @@ class Logic(_cam.Cam):
 		self.state_names	= {
 			0 : 'manuaalne',
 			1 : 'oota',
-			2 : 'j2lita palli',
-			3 : 'loo palli',
-			4 : 'tagurda robotist',
-			5 : 'tagurda varavast'
+			2 : 'leia pall',
+			3 : 'j2lita palli',
+			4 : 'loo palli',
+			5 : 'tagurda robotist',
+			6 : 'tagurda varavast'
 		}
 		
 	def f_manual(self):
@@ -28,18 +29,13 @@ class Logic(_cam.Cam):
 		#wait until switch is flipped
 		pass
 		
-	def f_follow_ball(self):
-		max_area	= 0
-		largest_ball	= None
-		print(len(self.frame_balls))
-		for ball in self.frame_balls:
-			if ball[4] > max_area:
-				max_area = ball[4]
-				largest_ball = ball
+	def f_find_ball(self):
+		pass
 		
-		if largest_ball is not None:
-			x	= largest_ball[0] + largest_ball[2] / 2
-			self.motors.move(2, (x - 320) * 70 * np.pi / 180 / 640, 0)
+	def f_follow_ball(self):
+		if self.largest_ball is not None:
+			r, alpha	= self.largest_ball
+			self.motors.move(20, alpha, alpha*30)
 		else:
 			self.motors.move(0, 0, 0)
 		self.motors.update()
@@ -65,10 +61,11 @@ class Logic(_cam.Cam):
 		options = {
 			0 : self.f_manual,
 			1 : self.f_wait,
-			2 : self.f_follow_ball,
-			3 : self.f_kick_ball,
-			4 : self.f_back_away_robot,
-			5 : self.f_back_away_gate
+			2 : self.f_find_ball,
+			3 : self.f_follow_ball,
+			4 : self.f_kick_ball,
+			5 : self.f_back_away_robot,
+			6 : self.f_back_away_gate
 		}
 		i	= 0
 		timea	= time.time()
