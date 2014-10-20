@@ -12,6 +12,8 @@
  * PS3 Eye camera enhanced by Richard Kaswy http://kaswy.free.fr
  * PS3 Eye camera - brightness, contrast, awb, agc, aec controls
  *                  added by Max Thrun <bear24rw@gmail.com>
+ * PS3 Eye camera - redblc, blueblc controls
+ *                  added by Lauri Hamarik <laurihamarik@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,6 +56,7 @@ MODULE_AUTHOR("Antonio Ospite <ospite@studenti.unina.it>");
 MODULE_DESCRIPTION("GSPCA/OV534 USB Camera Driver + lwd8cmd");
 MODULE_LICENSE("GPL");
 
+/*
 static int parm_mode = 0;
 module_param(parm_mode, int, 0000);
 MODULE_PARM_DESC(parm_mode, "[0|1] // 0=(320x240), 1=(640x480)");
@@ -61,6 +64,7 @@ MODULE_PARM_DESC(parm_mode, "[0|1] // 0=(320x240), 1=(640x480)");
 static int parm_fps = 125;
 module_param(parm_fps, int, 0000);
 MODULE_PARM_DESC(parm_fps, "15-125 // See available fps");
+*/
 
 /* specific webcam descriptor */
 struct sd {
@@ -76,6 +80,8 @@ struct sd {
 		struct v4l2_ctrl *gain;
 	};
 	struct v4l2_ctrl *autowhitebalance;
+	struct v4l2_ctrl *redblc;
+	struct v4l2_ctrl *blueblc;
 	struct { /* exposure control cluster */
 		struct v4l2_ctrl *autoexposure;
 		struct v4l2_ctrl *exposure;
@@ -895,6 +901,16 @@ static void setcontrast(struct gspca_dev *gspca_dev, s32 val)
 		sccb_reg_write(gspca_dev, 0x9c, val);
 }
 
+static void setredblc(struct gspca_dev *gspca_dev, s32 val)
+{
+	sccb_reg_write(gspca_dev, 0x43, val);
+}
+
+static void setblueblc(struct gspca_dev *gspca_dev, s32 val)
+{
+	sccb_reg_write(gspca_dev, 0x42, val);
+}
+
 static void setgain(struct gspca_dev *gspca_dev, s32 val)
 {
 	switch (val & 0x30) {
@@ -1126,6 +1142,12 @@ static int ov534_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		setawb(gspca_dev, ctrl->val);
 		break;
+	case V4L2_CID_RED_BALANCE:
+		setredblc(gspca_dev, ctrl->val);
+		break;
+	case V4L2_CID_BLUE_BALANCE:
+		setblueblc(gspca_dev, ctrl->val);
+		break;
 	case V4L2_CID_EXPOSURE_AUTO:
 	/* case V4L2_CID_EXPOSURE: */
 		setaec(gspca_dev, ctrl->val);
@@ -1171,6 +1193,12 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 	int exposure_max;
 	int exposure_def;
 	int hflip_def;
+	int redblc_min = 0;
+	int redblc_max = 255;
+	int redblc_def = 100;
+	int blueblc_min = 0;
+	int blueblc_max = 255;
+	int blueblc_def = 160;
 
 	if (sd->sensor == SENSOR_OV767x) {
 		saturation_min = 0,
@@ -1188,15 +1216,15 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 	} else {
 		saturation_min = 0,
 		saturation_max = 255,
-		saturation_def = 64,
+		saturation_def = 96,
 		brightness_min = 0;
 		brightness_max = 255;
 		brightness_def = 0;
 		contrast_max = 255;
-		contrast_def = 32;
+		contrast_def = 40;
 		exposure_min = 0;
 		exposure_max = 255;
-		exposure_def = 120;
+		exposure_def = 255;
 		hflip_def = 0;
 	}
 
@@ -1219,25 +1247,31 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 
 	if (sd->sensor == SENSOR_OV772x) {
 		sd->autogain = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
-				V4L2_CID_AUTOGAIN, 0, 1, 1, 1);
+				V4L2_CID_AUTOGAIN, 0, 1, 1, 0);
 		sd->gain = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
-				V4L2_CID_GAIN, 0, 63, 1, 20);
+				V4L2_CID_GAIN, 0, 63, 1, 40);
 	}
 
 	sd->autoexposure = v4l2_ctrl_new_std_menu(hdl, &ov534_ctrl_ops,
 			V4L2_CID_EXPOSURE_AUTO,
 			V4L2_EXPOSURE_MANUAL, 0,
-			V4L2_EXPOSURE_AUTO);
+			V4L2_EXPOSURE_MANUAL);
 	sd->exposure = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
 			V4L2_CID_EXPOSURE, exposure_min, exposure_max, 1,
 			exposure_def);
 
 	sd->autowhitebalance = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
-			V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1);
+			V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 0);
+			
+	sd->redblc = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
+			V4L2_CID_RED_BALANCE, redblc_min, redblc_max, 1, redblc_def);
+			
+	sd->blueblc = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
+			V4L2_CID_BLUE_BALANCE, blueblc_min, blueblc_max, 1, blueblc_def);
 
 	if (sd->sensor == SENSOR_OV772x)
 		sd->sharpness = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
-				V4L2_CID_SHARPNESS, 0, 63, 1, 0);
+				V4L2_CID_SHARPNESS, 0, 63, 1, 5);
 
 	sd->hflip = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
 			V4L2_CID_HFLIP, 0, 1, 1, hflip_def);
@@ -1370,6 +1404,8 @@ static int sd_start(struct gspca_dev *gspca_dev)
 	if (sd->autogain)
 		setagc(gspca_dev, v4l2_ctrl_g_ctrl(sd->autogain));
 	setawb(gspca_dev, v4l2_ctrl_g_ctrl(sd->autowhitebalance));
+	setredblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->redblc));
+	setblueblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->blueblc));
 	setaec(gspca_dev, v4l2_ctrl_g_ctrl(sd->autoexposure));
 	if (sd->gain)
 		setgain(gspca_dev, v4l2_ctrl_g_ctrl(sd->gain));

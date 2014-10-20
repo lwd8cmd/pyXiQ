@@ -10,14 +10,13 @@ import cv2
 class UI(object):
 	def __init__(self, logic):
 		self.logic	= logic
-		self.logic.UI	= True
 		pygame.init()
 		pygame.display.set_caption('Press ESC to quit')
 		self.background = pygame.image.load('UI_bg.png')
 		self.size = (self.width, self.height) = self.background.get_size()
 		self.screen = pygame.display.set_mode((self.size), pygame.DOUBLEBUF)
 		self.clock = pygame.time.Clock()
-		self.fps = 10
+		self.fps = 8
 		self.playtime = 0.0
 		self.font = pygame.font.SysFont('mono', 16, bold=False)
 		self.GREEN = (0, 255, 0)
@@ -38,6 +37,9 @@ class UI(object):
 		
 		cv2.namedWindow('frame')
 		cv2.moveWindow('frame', 400, 0)
+		pygame_keys_dir	= [pygame.K_a,pygame.K_q,pygame.K_w,pygame.K_e,pygame.K_d,pygame.K_x,pygame.K_s,pygame.K_z]
+		pygame_keys_rotate	= [pygame.K_n,pygame.K_m]
+		pygame_keys_states	= [pygame.K_0,pygame.K_1,pygame.K_2,pygame.K_3,pygame.K_4,pygame.K_5,pygame.K_6,pygame.K_7,pygame.K_8]
 		
 		while running:
 			#keylisteners
@@ -50,69 +52,35 @@ class UI(object):
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
 					running = False
+					break
 				elif event.type == pygame.KEYDOWN:
 					if event.key == pygame.K_ESCAPE:
 						running = False
 						break
-					elif event.key == pygame.K_a:
-						self.logic.state	= 0
-						speed		= 20
-						direction	= -np.pi/2
-						omega		= 0
-						no_key 		= 0
-					elif event.key == pygame.K_d:
-						self.logic.state	= 0
-						speed		= 20
-						direction	= np.pi/2
-						omega		= 0
-						no_key 		= 0
-					elif event.key == pygame.K_w:
-						self.logic.state	= 0
-						speed		= 20
-						direction	= 0
-						omega		= 0
-						no_key 		= 0
-					elif event.key == pygame.K_s:
-						self.logic.state	= 0
-						speed		= 20
-						direction	= np.pi
-						omega		= 0
-						no_key 		= 0
-					elif event.key == pygame.K_q:
-						self.logic.state	= 0
-						speed		= 20
-						direction	= -np.pi/4
-						omega		= 0
-						no_key 		= 0
-					elif event.key == pygame.K_e:
-						self.logic.state	= 0
-						speed		= 20
-						direction	= np.pi/4
-						omega		= 0
-						no_key 		= 0
-					elif event.key == pygame.K_n:
-						self.logic.state	= 0
-						speed		= 0
-						direction	= 0
-						omega		= -3
-						no_key 		= 0
-					elif event.key == pygame.K_m:
-						self.logic.state	= 0
-						speed		= 0
-						direction	= 0
-						omega		= 3
-						no_key 		= 0
-					elif event.key == pygame.K_x:
+					elif event.key == pygame.K_SPACE:#SPACE==stop
 						self.logic.state	= 0
 						speed		= 0
 						direction	= 0
 						omega		= 0
-						no_key 		= 0
-					elif event.key == pygame.K_p:
-						self.logic.state	= 3
+					for index, item in enumerate(pygame_keys_states):#0-9==state
+						if item == event.key:
+							self.logic.state	= index
+					if not (self.logic.state == 5 or self.logic.state == 6):
+						for index, item in enumerate(pygame_keys_dir):#aqwedxsz==move
+							if item == event.key:
+								self.logic.state	= 0
+								speed		= 13
+								direction	= -np.pi/2 + index * np.pi/4
+								omega		= 0
+								no_key 		= 0
+						for index, item in enumerate(pygame_keys_rotate):#nm==rotate
+							if item == event.key:
+								self.logic.state	= 0
+								speed		= 0
+								direction	= 0
+								omega		= 3 * (-1 if index == 0 else 1)
+								no_key 		= 0
 						
-			if not running:
-				break
 			if self.logic.state == 0:#set speed
 				self.logic.motors.move(speed*3, direction, omega*5)
 				self.logic.motors.update()
@@ -123,8 +91,8 @@ class UI(object):
 			#draw velocity info (bottom right)
 			tmp_om	= self.logic.motors.angular_velocity / 5
 			pygame.draw.line(self.screen, self.WHITE, (305, 314), (
-				305 + np.sin(self.logic.motors.direction)*self.logic.motors.speed*10,
-				314 - np.cos(self.logic.motors.direction)*self.logic.motors.speed*10), 1)
+				305 + np.sin(self.logic.motors.direction)*self.logic.motors.speed,
+				314 - np.cos(self.logic.motors.direction)*self.logic.motors.speed), 1)
 			radius	= 64
 			if tmp_om > 0:
 				pygame.draw.arc(self.screen, self.WHITE, [305-radius, 314-radius, 2*radius, 2*radius], np.pi/2 - tmp_om, np.pi/2, 1)
@@ -132,15 +100,10 @@ class UI(object):
 				pygame.draw.arc(self.screen, self.WHITE, [305-radius, 314-radius, 2*radius, 2*radius], np.pi/2, np.pi/2 - tmp_om, 1)
 				
 			#draw info (bottom left) (motors speed, fps, state)
-			self.screen.blit(self.font.render(
-				self.strint(self.logic.motors.rsd1) + '/' + self.strint(self.logic.motors.sd1),
-				False, self.WHITE), (40, 251))
-			self.screen.blit(self.font.render(
-				self.strint(self.logic.motors.rsd2) + '/' + self.strint(self.logic.motors.sd2),
-				False, self.WHITE), (40, 273))
-			self.screen.blit(self.font.render(
-				self.strint(self.logic.motors.rsd3) + '/' + self.strint(self.logic.motors.sd3),
-				False, self.WHITE), (40, 295))
+			for i in range(3):
+				self.screen.blit(self.font.render(
+					self.strint(self.logic.motors.sds[i]),
+					False, self.WHITE), (40, 251 + i * 22))
 			self.screen.blit(self.font.render(self.logic.fps, False, self.WHITE), (40, 317))
 			self.screen.blit(self.font.render(self.logic.state_names[self.logic.state], False, self.WHITE), (40, 339))
 
@@ -165,7 +128,11 @@ class UI(object):
 			pygame.display.flip()
 				
 			#show camera feed
-			cv2.imshow('frame', self.logic.frame)
+			frame	= np.zeros((480,640,3))
+			frame[self.logic.t_ball > 0] = [0, 0, 255]#balls are shown as red
+			frame[self.logic.t_gatey > 0] = [0, 255, 255]#yellow gate is yellow
+			frame[self.logic.t_gateb > 0] = [255, 0, 0]#captain obvious is obvious
+			cv2.imshow('frame', frame)
 			
 			#wait w/ openCV, pygame
 			if cv2.waitKey(1) & 0xFF == pygame.K_ESCAPE:

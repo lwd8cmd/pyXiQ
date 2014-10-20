@@ -27,5 +27,6 @@ else:
 			time.sleep(1)
 		except KeyboardInterrupt:
 			print('Ctrl-c received! Killing threads.')
+			motors.run_it	= False
 			logic.run_it	= False
 			break

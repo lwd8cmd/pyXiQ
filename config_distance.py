@@ -61,7 +61,7 @@ if len(ys) == len(distances):
 	h_ball	= 2.15
 			
 	def calc_distance(y, cam_height, cam_distance, angle):
-		return (cam_height + h_ball) * np.tan(angle - d_angle * y) - cam_distance
+		return (cam_height - h_ball) * np.tan(angle - d_angle * y) - cam_distance
 		
 	p	= curve_fit(calc_distance, ys, distances, p0=[15, 8, 1.63])[0]
 	

@@ -1,9 +1,7 @@
 import cv2
 import numpy as np
 import cPickle as pickle
-import subprocess
-
-subprocess.check_output('v4l2-ctl -d /dev/video0 -c white_balance_automatic=0 -c gain_automatic=0 -c auto_exposure=1', shell=True)
+import _cam_settings
 
 def nothing(x):
 	pass
