@@ -53,18 +53,8 @@
 #define CTRL_TIMEOUT 500
 
 MODULE_AUTHOR("Antonio Ospite <ospite@studenti.unina.it>");
-MODULE_DESCRIPTION("GSPCA/OV534 USB Camera Driver + lwd8cmd");
+MODULE_DESCRIPTION("GSPCA/OV534 USB Camera Driver");
 MODULE_LICENSE("GPL");
-
-/*
-static int parm_mode = 0;
-module_param(parm_mode, int, 0000);
-MODULE_PARM_DESC(parm_mode, "[0|1] // 0=(320x240), 1=(640x480)");
-
-static int parm_fps = 125;
-module_param(parm_fps, int, 0000);
-MODULE_PARM_DESC(parm_fps, "15-125 // See available fps");
-*/
 
 /* specific webcam descriptor */
 struct sd {
@@ -79,9 +69,12 @@ struct sd {
 		struct v4l2_ctrl *autogain;
 		struct v4l2_ctrl *gain;
 	};
-	struct v4l2_ctrl *autowhitebalance;
-	struct v4l2_ctrl *redblc;
-	struct v4l2_ctrl *blueblc;
+	struct { /* color balance control cluster */
+		struct v4l2_ctrl *autowhitebalance;
+		struct v4l2_ctrl *redblc;
+		struct v4l2_ctrl *greenblc;
+		struct v4l2_ctrl *blueblc;
+	};
 	struct { /* exposure control cluster */
 		struct v4l2_ctrl *autoexposure;
 		struct v4l2_ctrl *exposure;
@@ -906,9 +899,29 @@ static void setredblc(struct gspca_dev *gspca_dev, s32 val)
 	sccb_reg_write(gspca_dev, 0x43, val);
 }
 
+static s32 getredblc(struct gspca_dev *gspca_dev)
+{
+	return sccb_reg_read(gspca_dev, 0x43);
+}
+
+static void setgreenblc(struct gspca_dev *gspca_dev, s32 val)
+{
+	sccb_reg_write(gspca_dev, 0x44, val);
+}
+
+static s32 getgreenblc(struct gspca_dev *gspca_dev)
+{
+	return sccb_reg_read(gspca_dev, 0x44);
+}
+
 static void setblueblc(struct gspca_dev *gspca_dev, s32 val)
 {
 	sccb_reg_write(gspca_dev, 0x42, val);
+}
+
+static s32 getblueblc(struct gspca_dev *gspca_dev)
+{
+	return sccb_reg_read(gspca_dev, 0x42);
 }
 
 static void setgain(struct gspca_dev *gspca_dev, s32 val)
@@ -1097,8 +1110,18 @@ static int ov534_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_AUTOGAIN:
 		gspca_dev->usb_err = 0;
-		if (ctrl->val && sd->gain && gspca_dev->streaming)
+		if (ctrl->val && sd->gain && gspca_dev->streaming) {
 			sd->gain->val = getgain(gspca_dev);
+		}
+		return gspca_dev->usb_err;
+		
+	case V4L2_CID_AUTO_WHITE_BALANCE:
+		gspca_dev->usb_err = 0;
+		if (ctrl->val && sd->redblc && sd->greenblc && sd->blueblc && gspca_dev->streaming) {
+			sd->redblc->val = getredblc(gspca_dev);
+			sd->greenblc->val = getgreenblc(gspca_dev);
+			sd->blueblc->val = getblueblc(gspca_dev);
+		}
 		return gspca_dev->usb_err;
 
 	case V4L2_CID_EXPOSURE_AUTO:
@@ -1141,9 +1164,17 @@ static int ov534_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		setawb(gspca_dev, ctrl->val);
+		if (!gspca_dev->usb_err && !ctrl->val && sd->redblc && sd->greenblc && sd->blueblc) {
+			setredblc(gspca_dev, sd->redblc->val);
+			setgreenblc(gspca_dev, sd->greenblc->val);
+			setblueblc(gspca_dev, sd->blueblc->val);
+		}
 		break;
 	case V4L2_CID_RED_BALANCE:
 		setredblc(gspca_dev, ctrl->val);
+		break;
+	case V4L2_CID_GAMMA:
+		setgreenblc(gspca_dev, ctrl->val);
 		break;
 	case V4L2_CID_BLUE_BALANCE:
 		setblueblc(gspca_dev, ctrl->val);
@@ -1195,10 +1226,13 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 	int hflip_def;
 	int redblc_min = 0;
 	int redblc_max = 255;
-	int redblc_def = 100;
+	int redblc_def = 128;
+	int greenblc_min = 0;
+	int greenblc_max = 255;
+	int greenblc_def = 128;
 	int blueblc_min = 0;
 	int blueblc_max = 255;
-	int blueblc_def = 160;
+	int blueblc_def = 128;
 
 	if (sd->sensor == SENSOR_OV767x) {
 		saturation_min = 0,
@@ -1216,15 +1250,15 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 	} else {
 		saturation_min = 0,
 		saturation_max = 255,
-		saturation_def = 96,
+		saturation_def = 64,
 		brightness_min = 0;
 		brightness_max = 255;
 		brightness_def = 0;
 		contrast_max = 255;
-		contrast_def = 40;
+		contrast_def = 32;
 		exposure_min = 0;
 		exposure_max = 255;
-		exposure_def = 255;
+		exposure_def = 120;
 		hflip_def = 0;
 	}
 
@@ -1247,31 +1281,34 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 
 	if (sd->sensor == SENSOR_OV772x) {
 		sd->autogain = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
-				V4L2_CID_AUTOGAIN, 0, 1, 1, 0);
+				V4L2_CID_AUTOGAIN, 0, 1, 1, 1);
 		sd->gain = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
-				V4L2_CID_GAIN, 0, 63, 1, 40);
+				V4L2_CID_GAIN, 0, 63, 1, 20);
 	}
 
 	sd->autoexposure = v4l2_ctrl_new_std_menu(hdl, &ov534_ctrl_ops,
 			V4L2_CID_EXPOSURE_AUTO,
 			V4L2_EXPOSURE_MANUAL, 0,
-			V4L2_EXPOSURE_MANUAL);
+			V4L2_EXPOSURE_AUTO);
 	sd->exposure = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
 			V4L2_CID_EXPOSURE, exposure_min, exposure_max, 1,
 			exposure_def);
 
 	sd->autowhitebalance = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
-			V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 0);
+			V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1);
 			
 	sd->redblc = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
 			V4L2_CID_RED_BALANCE, redblc_min, redblc_max, 1, redblc_def);
 			
+	sd->greenblc = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
+			V4L2_CID_GAMMA, greenblc_min, greenblc_max, 1, greenblc_def);
+			
 	sd->blueblc = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
 			V4L2_CID_BLUE_BALANCE, blueblc_min, blueblc_max, 1, blueblc_def);
-
+			
 	if (sd->sensor == SENSOR_OV772x)
 		sd->sharpness = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
-				V4L2_CID_SHARPNESS, 0, 63, 1, 5);
+				V4L2_CID_SHARPNESS, 0, 63, 1, 0);
 
 	sd->hflip = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
 			V4L2_CID_HFLIP, 0, 1, 1, hflip_def);
@@ -1293,6 +1330,8 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 
 	v4l2_ctrl_auto_cluster(2, &sd->autoexposure, V4L2_EXPOSURE_MANUAL,
 			       true);
+			       
+	v4l2_ctrl_auto_cluster(4, &sd->autowhitebalance, 0, true);
 
 	return 0;
 }
@@ -1379,10 +1418,6 @@ static int sd_start(struct gspca_dev *gspca_dev)
 			{sensor_start_vga_772x,
 					ARRAY_SIZE(sensor_start_vga_772x)}},
 	};
-	
-	/*LWD8CMD defaults*/
-	/*gspca_dev->curr_mode = parm_mode;
-	sd->frame_rate = (u8 *)parm_fps;*/
 
 	/* (from ms-win trace) */
 	if (sd->sensor == SENSOR_OV767x)
@@ -1404,8 +1439,12 @@ static int sd_start(struct gspca_dev *gspca_dev)
 	if (sd->autogain)
 		setagc(gspca_dev, v4l2_ctrl_g_ctrl(sd->autogain));
 	setawb(gspca_dev, v4l2_ctrl_g_ctrl(sd->autowhitebalance));
-	setredblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->redblc));
-	setblueblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->blueblc));
+	if (sd->redblc)
+		setredblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->redblc));
+	if (sd->greenblc)
+		setgreenblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->greenblc));
+	if (sd->blueblc)
+		setblueblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->blueblc));
 	setaec(gspca_dev, v4l2_ctrl_g_ctrl(sd->autoexposure));
 	if (sd->gain)
 		setgain(gspca_dev, v4l2_ctrl_g_ctrl(sd->gain));
