@@ -8,6 +8,8 @@ import threading
 import cPickle as pickle
 import subprocess
 import _cam_settings
+import time
+import segment
 
 class Cam(threading.Thread):
 	def __init__(self):
@@ -16,17 +18,33 @@ class Cam(threading.Thread):
 		self.frame_balls	= []#balls[]=[x,y,w,h,area]
 		self.gates	= [None, None]
 		self.largest_ball	= None
+		self.gate_right	= True
 		self.fps	= '0'
-		self.mins, self.maxs = pickle.load(open('colors.p', 'rb'))
+		with open('colors.pkl', 'rb') as fh:
+			self.colors_lookup = pickle.load(fh)
+			segment.set_table(self.colors_lookup)
 		self.CAM_D_ANGLE	= 60 * np.pi / 180 / 640
-		self.CAM_HEIGHT, self.CAM_DISTANCE, self.CAM_ANGLE = pickle.load(open('distances.p', 'rb'))
+		with open('distances.pkl', 'rb') as fh:
+			self.CAM_HEIGHT, self.CAM_DISTANCE, self.CAM_ANGLE = pickle.load(fh)
 		self.H_BALL	= 2.15#half height
 		self.H_GATE	= 10
-		self.t_ball	= np.zeros((480,640))
-		self.t_gatey= np.zeros((480,640))
-		self.t_gateb= np.zeros((480,640))
+		self.fragmented	= np.zeros((480,640), dtype=np.uint8)
+		self.t_ball = np.zeros((480,640), dtype=np.uint8)
+		self.t_gatey = np.zeros((480,640), dtype=np.uint8)
+		self.t_gateb	= np.zeros((480,640), dtype=np.uint8)
+		self.gate	= 0#0==yellow,1==blue
 		
 	def open(self):
+		self.cam = cv2.VideoCapture(0)
+		if self.cam.isOpened():
+			return True
+		self.cam.release()
+		print('cam: reset USB')
+		for usb in subprocess.check_output(['lsusb']).split('\n')[:-1]:
+			if usb[23:32] == '1415:2000':
+				comm	= 'sudo /home/mitupead/Desktop/robotex/usbreset /dev/bus/usb/'+usb[4:7]+'/'+usb[15:18]
+				print(subprocess.check_output(comm, shell=True))
+		time.sleep(1)
 		self.cam = cv2.VideoCapture(0)
 		return self.cam.isOpened()
 			
@@ -46,15 +64,16 @@ class Cam(threading.Thread):
 		self.frame_balls	= []
 		for contour in contours:
 			s	= cv2.contourArea(contour)
-			if s > 30:
+			if s > 10:
 				x, y, w, h = cv2.boundingRect(contour)
-				#ratio	= w / h
-				#if ratio > 0.8 and ratio < 1.2:
-				coords	= self.calc_location(x + w / 2, y + h / 2, True)
-				self.frame_balls.append(coords)
-				if s > s_max:
-					s_max	= s
-					self.largest_ball	= coords
+				ratio	= float(w) / h
+				ratio	= max(ratio, 1/ratio)
+				if ratio < 1.2 or (ratio < 1.4 and w < 10) or (ratio < 1.7 and w < 9):
+					coords	= self.calc_location(x + w / 2, y + h / 2, True)
+					self.frame_balls.append(coords)
+					if s > s_max:
+						s_max	= s
+						self.largest_ball	= coords
 					
 	def analyze_gate(self, t_gate, gate_nr):
 		contours, hierarchy = cv2.findContours(t_gate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -62,7 +81,7 @@ class Cam(threading.Thread):
 		s_max	= 0
 		for contour in contours:
 			s	= cv2.contourArea(contour)
-			if s > 50:
+			if s > 250:
 				x, y, w, h = cv2.boundingRect(contour)
 				#ratio	= w / h
 				#if ratio > 0.8 and ratio < 1.2:
@@ -73,12 +92,16 @@ class Cam(threading.Thread):
 		
 	def analyze_frame(self):
 		_, img = self.cam.read()
-		#img = cv2.GaussianBlur(img,(3,3),0)
+		segment.segment(img, self.fragmented, self.t_ball, self.t_gatey, self.t_gateb)
+		#yuv	= img.astype('uint32')
+		#fragmented	= self.colors_lookup[yuv[:,:,0] + yuv[:,:,1] * 0x100 + yuv[:,:,2] * 0x10000]
 		
-		self.t_ball = cv2.inRange(img, self.mins[0], self.maxs[0])
-		self.t_gatey = cv2.inRange(img, self.mins[1], self.maxs[1])
-		self.t_gateb = cv2.inRange(img, self.mins[2], self.maxs[2])
+		#self.t_ball = (fragmented == 1).view('uint8')
+		#self.t_gatey = (fragmented == 2).view('uint8')
+		#self.t_gateb = (fragmented == 3).view('uint8')
 		
 		self.analyze_balls(self.t_ball)
 		self.analyze_gate(self.t_gatey, 0)
 		self.analyze_gate(self.t_gateb, 1)
+		if self.gates[self.gate] is not None:
+			self.gate_right = self.gates[self.gate][1] > 0

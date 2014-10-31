@@ -4,7 +4,8 @@ import cPickle as pickle
 from scipy.optimize import curve_fit
 
 cap = cv2.VideoCapture(0)
-mins, maxs= pickle.load(open('colors.p', 'rb'))
+with open('colors.pkl', 'rb') as fh:
+	colors_lookup = pickle.load(fh)
 ys	= []
 i	= 0
 distances	= np.linspace(30, 90, 4)
@@ -18,10 +19,8 @@ cv2.moveWindow('frame', 400, 0)
 while(True):
     # Capture frame-by-frame
 	_, yuv = cap.read()
-	
-    # Display the resulting frame
-	blurred = cv2.GaussianBlur(yuv,(3,3),0)
-	mask = cv2.inRange(blurred, mins[0], maxs[0])
+	fragmented	= colors_lookup[yuv[:,:,0] + yuv[:,:,1] * 0x100 + yuv[:,:,2] * 0x10000]
+	mask	= (fragmented == 1).view('uint8')
 	
 	contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 	max_area	= 0
@@ -36,10 +35,10 @@ while(True):
 			x	= _x + _w / 2
 			
 	if y is not None:
-		cv2.line(blurred, (0,y),(640,y),(255,255,255),1)
-		cv2.line(blurred, (x,0),(x,480),(255,255,255),1)
+		cv2.line(yuv, (0,y),(640,y),(255,255,255),1)
+		cv2.line(yuv, (x,0),(x,480),(255,255,255),1)
 
-	cv2.imshow('frame', blurred)
+	cv2.imshow('frame', yuv)
 	k = cv2.waitKey(1) & 0xFF
 
 	if k == ord('q'):
@@ -71,6 +70,7 @@ if len(ys) == len(distances):
 		print(distances[i], calc_distance(ys[i], p[0], p[1], p[2]))
 	
 	# When everything done, release the capture
-	pickle.dump(p, open('distances.p', 'wb'))
+	with open('distances.pkl', 'wb') as fh:
+		pickle.dump(p, fh, -1)
 cap.release()
 cv2.destroyAllWindows()

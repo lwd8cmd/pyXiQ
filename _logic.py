@@ -24,6 +24,11 @@ class Logic(_cam.Cam):
 		}
 		self.stalled_i	= 0
 		self.last_state = 0
+		self.robot_x	= 0#max 460cm
+		self.robot_y	= 155#max 310cm
+		self.robot_dir	= 0
+		self.gate	= 0#0=yellow,1=blue
+		self.profile	= 60 * 10#sudo python -m cProfile -s time run.py
 		
 	def f_manual(self):
 		#manual mode, do nothing
@@ -51,8 +56,8 @@ class Logic(_cam.Cam):
 			#self.motors.update()
 		
 	def f_follow_gate(self):
-		if self.gates[0] is not None:
-			r, alpha	= self.gates[0]
+		if self.gates[self.gate] is not None:
+			r, alpha	= self.gates[self.gate]
 			self.motors.move(30, alpha, alpha*20)
 		else:
 			self.motors.move(0, 0, 0)
@@ -62,7 +67,7 @@ class Logic(_cam.Cam):
 		if self.gates[0] is not None:
 			self.state	= 8
 		else:
-			self.motors.move(0, 0, 15)
+			self.motors.move(0, 0, 15 * ((1 if self.gate_right else -1)))
 			self.motors.update()
 		
 	def f_stalled(self):
@@ -87,6 +92,11 @@ class Logic(_cam.Cam):
 	def f_back_away_gate(self):
 		#gate too close, back away
 		pass
+		
+	def update_position(self):
+		self.robot_x	+= self.motors.speed/64.0*np.cos(self.motors.direction+self.robot_dir)
+		self.robot_y	+= self.motors.speed/64.0*np.sin(self.motors.direction+self.robot_dir)
+		self.robot_dir	+= self.motors.angular_velocity/783.0
 	
 	def run(self):
 		if self.open():
@@ -114,6 +124,8 @@ class Logic(_cam.Cam):
 			else:
 				options[self.state]()
 			
+			self.update_position()
+				
 			#fps counter
 			i += 1
 			if i % 60 == 0:
@@ -121,6 +133,10 @@ class Logic(_cam.Cam):
 				timeb	= time.time()
 				self.fps	= str(int(round(60 / (timeb - timea))))
 				timea	= timeb
+				
+			#self.profile -= 1
+			#if self.profile < 0:
+			#	self.run_it = False
 		print('logic: close thread')
 		self.motors.run_it	= False
 		self.close()

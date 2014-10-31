@@ -72,6 +72,7 @@ struct sd {
 	struct { /* color balance control cluster */
 		struct v4l2_ctrl *autowhitebalance;
 		struct v4l2_ctrl *redblc;
+		struct v4l2_ctrl *greenblc;
 		struct v4l2_ctrl *blueblc;
 	};
 	struct { /* exposure control cluster */
@@ -901,10 +902,20 @@ static void setcontrast(struct gspca_dev *gspca_dev, s32 val)
 
 static void setredblc(struct gspca_dev *gspca_dev, s32 val)
 {
-	sccb_reg_write(gspca_dev, 0x03, val);/*0x43*/
+	sccb_reg_write(gspca_dev, 0x02, val);/*0x43*/
 }
 
 static s32 getredblc(struct gspca_dev *gspca_dev)
+{
+	return sccb_reg_read(gspca_dev, 0x02);
+}
+
+static void setgreenblc(struct gspca_dev *gspca_dev, s32 val)
+{
+	sccb_reg_write(gspca_dev, 0x03, val);/*0x43*/
+}
+
+static s32 getgreenblc(struct gspca_dev *gspca_dev)
 {
 	return sccb_reg_read(gspca_dev, 0x03);
 }
@@ -999,9 +1010,9 @@ static void setagc(struct gspca_dev *gspca_dev, s32 val)
 
 static void setawb(struct gspca_dev *gspca_dev, s32 val)
 {
-	struct sd *sd = (struct sd *) gspca_dev;
+	/*struct sd *sd = (struct sd *) gspca_dev;
 
-	/*if (val) {
+	if (val) {
 		sccb_reg_write(gspca_dev, 0x13,
 				sccb_reg_read(gspca_dev, 0x13) | 0x02);
 		if (sd->sensor == SENSOR_OV772x)
@@ -1117,8 +1128,9 @@ static int ov534_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		gspca_dev->usb_err = 0;
-		if (ctrl->val && sd->redblc && sd->blueblc && gspca_dev->streaming) {
+		if (ctrl->val && sd->redblc && sd->greenblc && sd->blueblc && gspca_dev->streaming) {
 			sd->redblc->val = getredblc(gspca_dev);
+			sd->greenblc->val = getgreenblc(gspca_dev);
 			sd->blueblc->val = getblueblc(gspca_dev);
 		}
 		return gspca_dev->usb_err;
@@ -1163,13 +1175,17 @@ static int ov534_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		setawb(gspca_dev, ctrl->val);
-		if (!gspca_dev->usb_err && !ctrl->val && sd->redblc && sd->blueblc) {
+		if (!gspca_dev->usb_err && !ctrl->val && sd->redblc && sd->greenblc && sd->blueblc) {
 			setredblc(gspca_dev, sd->redblc->val);
+			setgreenblc(gspca_dev, sd->greenblc->val);
 			setblueblc(gspca_dev, sd->blueblc->val);
 		}
 		break;
 	case V4L2_CID_RED_BALANCE:
 		setredblc(gspca_dev, ctrl->val);
+		break;
+	case V4L2_CID_GAMMA:
+		setgreenblc(gspca_dev, ctrl->val);
 		break;
 	case V4L2_CID_BLUE_BALANCE:
 		setblueblc(gspca_dev, ctrl->val);
@@ -1222,6 +1238,9 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 	int redblc_min = 0;
 	int redblc_max = 255;
 	int redblc_def = 128;
+	int greenblc_min = 0;
+	int greenblc_max = 255;
+	int greenblc_def = 128;
 	int blueblc_min = 0;
 	int blueblc_max = 255;
 	int blueblc_def = 128;
@@ -1291,6 +1310,9 @@ static int sd_init_controls(struct gspca_dev *gspca_dev)
 			
 	sd->redblc = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
 			V4L2_CID_RED_BALANCE, redblc_min, redblc_max, 1, redblc_def);
+			
+	sd->greenblc = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
+			V4L2_CID_GAMMA, greenblc_min, greenblc_max, 1, greenblc_def);
 				
 	sd->blueblc = v4l2_ctrl_new_std(hdl, &ov534_ctrl_ops,
 			V4L2_CID_BLUE_BALANCE, blueblc_min, blueblc_max, 1, blueblc_def);
@@ -1430,6 +1452,8 @@ static int sd_start(struct gspca_dev *gspca_dev)
 	setawb(gspca_dev, v4l2_ctrl_g_ctrl(sd->autowhitebalance));
 	if (sd->redblc)
 		setredblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->redblc));
+	if (sd->greenblc)
+		setgreenblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->greenblc));
 	if (sd->blueblc)
 		setblueblc(gspca_dev, v4l2_ctrl_g_ctrl(sd->blueblc));
 	setaec(gspca_dev, v4l2_ctrl_g_ctrl(sd->autoexposure));

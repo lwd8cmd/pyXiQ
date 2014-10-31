@@ -40,6 +40,7 @@ class UI(object):
 		pygame_keys_dir	= [pygame.K_a,pygame.K_q,pygame.K_w,pygame.K_e,pygame.K_d,pygame.K_x,pygame.K_s,pygame.K_z]
 		pygame_keys_rotate	= [pygame.K_n,pygame.K_m]
 		pygame_keys_states	= [pygame.K_0,pygame.K_1,pygame.K_2,pygame.K_3,pygame.K_4,pygame.K_5,pygame.K_6,pygame.K_7,pygame.K_8]
+		pygame_keys_gates	= [pygame.K_y,pygame.K_b]
 		
 		while running:
 			#keylisteners
@@ -65,6 +66,9 @@ class UI(object):
 					for index, item in enumerate(pygame_keys_states):#0-9==state
 						if item == event.key:
 							self.logic.state	= index
+					for index, item in enumerate(pygame_keys_gates):#yb==change gate
+						if item == event.key:
+							self.logic.gate	= index
 					if not (self.logic.state == 5 or self.logic.state == 6):
 						for index, item in enumerate(pygame_keys_dir):#aqwedxsz==move
 							if item == event.key:
@@ -106,11 +110,13 @@ class UI(object):
 					False, self.WHITE), (40, 251 + i * 22))
 			self.screen.blit(self.font.render(self.logic.fps, False, self.WHITE), (40, 317))
 			self.screen.blit(self.font.render(self.logic.state_names[self.logic.state], False, self.WHITE), (40, 339))
+			self.screen.blit(self.font.render(('blue' if self.logic.gate else 'yellow'), False, self.WHITE), (60, 361))
 
 			#draw robot
-			robot_x	= 185
-			robot_y	= 122
-			robot_angle	= 0
+			robot_x	= self.logic.robot_x*185*2/460#185
+			robot_y	= self.logic.robot_y*122*2/310#122
+			#print(self.logic.robot_x, self.logic.robot_y, self.logic.robot_dir)
+			robot_angle	= self.logic.robot_dir
 			pygame.draw.line(self.screen, self.BLACK, (robot_x, robot_y), (
 				robot_x + 150 * np.cos(robot_angle - self.HFOV),
 				robot_y + 150 * np.sin(robot_angle - self.HFOV)), 1)
@@ -120,8 +126,8 @@ class UI(object):
 			
 			#draw balls
 			for ball in self.logic.frame_balls:
-				ball_x	= robot_x + ball[0] * np.cos(ball[1])
-				ball_y	= robot_y + ball[0] * np.sin(ball[1])
+				ball_x	= robot_x + ball[0] * np.cos(ball[1])*185*2/460
+				ball_y	= robot_y + ball[0] * np.sin(ball[1])*185*2/460
 				pygame.draw.rect(self.screen, self.RED, (ball_x-1,ball_y-1,3,3), 0)
 			
 			#update pygame screen

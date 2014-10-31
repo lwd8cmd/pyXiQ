@@ -73,6 +73,7 @@ class Motors(threading.Thread):
 			if usb[23:32] == '16c0:047a':
 				comm	= 'sudo /home/mitupead/Desktop/robotex/usbreset /dev/bus/usb/'+usb[4:7]+'/'+usb[15:18]
 				print(subprocess.check_output(comm, shell=True))
+		time.sleep(1)
 	
 	def close(self):
 		for motor in self.motors:
