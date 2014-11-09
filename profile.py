@@ -1,7 +1,7 @@
 # Mitupead Robotix project 2014
 # Lauri Hamarik & Joosep Kivastik
 # profile
-# python -m cProfile -s time profile.py
+# python -m cProfile -s cumtime profile.py
 import _motors
 import _logic
 

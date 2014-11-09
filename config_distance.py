@@ -8,7 +8,7 @@ with open('colors.pkl', 'rb') as fh:
 	colors_lookup = pickle.load(fh)
 ys	= []
 i	= 0
-distances	= np.linspace(30, 90, 4)
+distances	= np.linspace(30, 300, 6)
 
 print('Press q to QUIT')
 print('Press o when ball is ' + str(distances[i]) + 'cm from the robot')

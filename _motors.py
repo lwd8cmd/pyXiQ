@@ -15,15 +15,20 @@ class Motors(threading.Thread):
 		self.DEG120	= 2*np.pi/3
 		#motor ids: 1=top left, 2=top right, 3=bottom
 		self.motors	= [None, None, None]
+		self.coil	= None
 		self.sds	= [0, 0, 0]#motor speeds
 		self.rsds	= [0, 0, 0]#real motor speeds
 		self.buffers	= ['', '', '']
+		self.coil_buffer	= ''
 		self.stalled	= [False, False, False]
 		self.angles	= [-self.DEG120, self.DEG120, 0]
 		self.is_opened	= False
 		self.speed	= 0
 		self.direction	= 0
 		self.angular_velocity	= 0
+		self.coil_enabled	= True
+		self.coil_open	= False
+		self.has_ball	= False
 		
 	def open(self, allow_reset = True):
 		try:
@@ -50,10 +55,16 @@ class Motors(threading.Thread):
 						print('motors: readline ' + port + ', ' + id_string.rstrip())
 						if id_string[:4] == '<id:':#~x~~x~?\n
 							id_nr = int(id_string[4])
-							self.motors[id_nr - 1] = connection
-							print('motors: motor ' + str(id_nr) + ' at ' + port)
-							if not None in self.motors:
+							if id_nr == 4 and self.coil_enabled:
+								self.coil	= connection
+								print('motors: coil at ' + port)
+							else:
+								self.motors[id_nr - 1] = connection
+								print('motors: motor ' + str(id_nr) + ' at ' + port)
+							if not None in self.motors and (self.coil is not None or not self.coil_enabled):
 								self.is_opened = True
+								if self.coil_enabled:
+									self.coil_open = True
 								return True
 							break
 					except:
@@ -73,15 +84,42 @@ class Motors(threading.Thread):
 			if usb[23:32] == '16c0:047a':
 				comm	= 'sudo /home/mitupead/Desktop/robotex/usbreset /dev/bus/usb/'+usb[4:7]+'/'+usb[15:18]
 				print(subprocess.check_output(comm, shell=True))
-		time.sleep(1)
+		time.sleep(2)
+		
+	def motor_write(self, i, comm):
+		try:
+			self.motors[i].write(comm + '\n')
+		except:
+			print('motors: err write ' + comm)
+			
+	def coil_write(self, comm):
+		try:
+			self.coil.write(comm + '\n')
+		except:
+			print('motors: err coil write ' + comm)
+		
+	def coil_kick(self):
+		if self.coil_open:
+			self.coil_write('k1000')
 	
 	def close(self):
-		for motor in self.motors:
+		for idx, motor in enumerate(self.motors):
 			if motor is not None:
 				if motor.isOpen():
-					motor.write('sd0\n')
-				motor.close()
+					self.motor_write(idx, 'sd0')
+					try:
+						motor.close()
+					except:
+						print('motors: err motors close')
 		self.motors	= [None, None, None]
+		if self.coil is not None and self.coil.isOpen():
+			self.coil_write('d')
+			try:
+				self.coil.close()
+			except:
+				print('motors: err coil close')
+			self.coil	= None
+			self.coil_open	= False
 	
 	def move(self, speed, direction, omega):
 		self.speed	= speed
@@ -90,25 +128,52 @@ class Motors(threading.Thread):
 		self.sds	= [int(round(speed*np.sin(direction + self.angles[i]) - omega)) for i in range(3)]
 		
 	def read_buffer(self, i):
-		while self.motors[i].inWaiting() > 0:
-			char	= self.motors[i].read(1)
-			if char == '\n':
-				print(i, self.buffers[i])
-				if self.buffers[i][:7] == '<stall:':
-					self.stalled[i]	= not self.buffers[i][7:8] == '0'
-				self.buffers[i]	= ''
-			else:
-				self.buffers[i] += char
+		try:
+			while self.motors[i].inWaiting() > 0:
+				try:
+					char	= self.motors[i].read(1)
+					if char == '\n':
+						print(i, self.buffers[i])
+						if self.buffers[i][:7] == '<stall:':
+							self.stalled[i]	= not self.buffers[i][7:8] == '0'
+						self.buffers[i]	= ''
+					else:
+						self.buffers[i] += char
+				except:
+					continue
+		except:
+			return
+			
+	def read_buffer_coil(self):
+		try:
+			while self.coil_open and self.coil.inWaiting() > 0:
+				try:
+					char	= self.coil.read(1)
+					if char == '\n':
+						#print(self.coil_buffer)
+						if self.coil_buffer[:3] == '<b:':
+							self.has_ball	= self.coil_buffer[3:4] == '4'
+						self.coil_buffer	= ''
+					else:
+						self.coil_buffer += char
+				except:
+					continue
+		except:
+			return
 		
 	def update(self):
 		if not self.is_opened:
 			return
-		if max(self.sds) > 150:
-			print('motors: too fast', self.sds)
-			return
+		maxs	= max(self.sds)
+		if maxs > 150:
+			#print('motors: too fast', self.sds)
+			#return
+			for i in range(3):
+				self.sds[i]	= int(self.sds[i] * 150.0 / maxs)
 		for i in range(3):
-			self.motors[i].write('sd' + str(self.sds[i]) + '\n')
+			self.motor_write(i, 'sd' + str(self.sds[i]))
 			self.read_buffer(i)
+		self.read_buffer_coil()
 		
 	def run(self):
 		if self.open():
@@ -117,8 +182,12 @@ class Motors(threading.Thread):
 			print('motors: opening failed')
 			self.close()
 			return
+		if self.coil_open:
+			self.coil_write('c')
 		while self.run_it:
 			self.update()
+			if self.coil_open:
+				self.coil_write('p')
 			time.sleep(1)
 		print('motors: close thread')
 		self.close()

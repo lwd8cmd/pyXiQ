@@ -6,6 +6,8 @@ import pygame
 import numpy as np
 import threading
 import cv2
+import time
+from collections import deque
 
 class UI(object):
 	def __init__(self, logic):
@@ -19,11 +21,14 @@ class UI(object):
 		self.fps = 8
 		self.playtime = 0.0
 		self.font = pygame.font.SysFont('mono', 16, bold=False)
+		self.font2 = pygame.font.SysFont('mono', 14, bold=False)
 		self.GREEN = (0, 255, 0)
 		self.WHITE = (255, 255, 255)
 		self.BLACK = (0, 0, 0)
 		self.RED = (255, 0, 0)
 		self.HFOV	= 30 * np.pi / 180
+		self.status_last	= 0
+		self.history	= deque([], maxlen=9)
 		
 	def strint(self, val):
 		return str(int(round(val)))
@@ -39,7 +44,8 @@ class UI(object):
 		cv2.moveWindow('frame', 400, 0)
 		pygame_keys_dir	= [pygame.K_a,pygame.K_q,pygame.K_w,pygame.K_e,pygame.K_d,pygame.K_x,pygame.K_s,pygame.K_z]
 		pygame_keys_rotate	= [pygame.K_n,pygame.K_m]
-		pygame_keys_states	= [pygame.K_0,pygame.K_1,pygame.K_2,pygame.K_3,pygame.K_4,pygame.K_5,pygame.K_6,pygame.K_7,pygame.K_8]
+		pygame_keys_states	= [pygame.K_0,pygame.K_1,pygame.K_3,pygame.K_4,pygame.K_5,pygame.K_6,pygame.K_7]
+		pygame_keys_states_i= [0,1,3,4,5,6,7]
 		pygame_keys_gates	= [pygame.K_y,pygame.K_b]
 		
 		while running:
@@ -58,6 +64,8 @@ class UI(object):
 					if event.key == pygame.K_ESCAPE:
 						running = False
 						break
+					if event.key == pygame.K_c:
+						self.logic.motors.coil_kick()
 					elif event.key == pygame.K_SPACE:#SPACE==stop
 						self.logic.state	= 0
 						speed		= 0
@@ -65,7 +73,7 @@ class UI(object):
 						omega		= 0
 					for index, item in enumerate(pygame_keys_states):#0-9==state
 						if item == event.key:
-							self.logic.state	= index
+							self.logic.set_state(pygame_keys_states_i[index])
 					for index, item in enumerate(pygame_keys_gates):#yb==change gate
 						if item == event.key:
 							self.logic.gate	= index
@@ -73,7 +81,7 @@ class UI(object):
 						for index, item in enumerate(pygame_keys_dir):#aqwedxsz==move
 							if item == event.key:
 								self.logic.state	= 0
-								speed		= 13
+								speed		= 1
 								direction	= -np.pi/2 + index * np.pi/4
 								omega		= 0
 								no_key 		= 0
@@ -82,18 +90,18 @@ class UI(object):
 								self.logic.state	= 0
 								speed		= 0
 								direction	= 0
-								omega		= 3 * (-1 if index == 0 else 1)
+								omega		= (-1 if index == 0 else 1)
 								no_key 		= 0
 						
 			if self.logic.state == 0:#set speed
-				self.logic.motors.move(speed*3, direction, omega*5)
+				self.logic.motors.move(speed * 100, direction, omega * 20)
 				self.logic.motors.update()
 			
 			#draw bg
 			self.screen.blit(self.background, (0, 0))
 			
 			#draw velocity info (bottom right)
-			tmp_om	= self.logic.motors.angular_velocity / 5
+			tmp_om	= self.logic.motors.angular_velocity / 20
 			pygame.draw.line(self.screen, self.WHITE, (305, 314), (
 				305 + np.sin(self.logic.motors.direction)*self.logic.motors.speed,
 				314 - np.cos(self.logic.motors.direction)*self.logic.motors.speed), 1)
@@ -109,8 +117,17 @@ class UI(object):
 					self.strint(self.logic.motors.sds[i]),
 					False, self.WHITE), (40, 251 + i * 22))
 			self.screen.blit(self.font.render(self.logic.fps, False, self.WHITE), (40, 317))
-			self.screen.blit(self.font.render(self.logic.state_names[self.logic.state], False, self.WHITE), (40, 339))
+			#self.screen.blit(self.font.render(self.logic.state_names[self.logic.state], False, self.WHITE), (40, 339))
+			self.screen.blit(self.font.render(('+' if self.logic.motors.has_ball else '-'), False, self.WHITE), (40, 339))
 			self.screen.blit(self.font.render(('blue' if self.logic.gate else 'yellow'), False, self.WHITE), (60, 361))
+			
+			#draw status history
+			status	= self.logic.state
+			if status is not self.status_last:
+				self.status_last = status
+				self.history.append(time.strftime('%H:%M:%S') + ' ' + str(status) + ' ' + self.logic.state_names[status])
+			for idx, val in enumerate(self.history):
+				self.screen.blit(self.font2.render(val, False, self.BLACK), (3, 383 + idx * 16))
 
 			#draw robot
 			robot_x	= self.logic.robot_x*185*2/460#185
@@ -138,6 +155,8 @@ class UI(object):
 			frame[self.logic.t_ball > 0] = [0, 0, 255]#balls are shown as red
 			frame[self.logic.t_gatey > 0] = [0, 255, 255]#yellow gate is yellow
 			frame[self.logic.t_gateb > 0] = [255, 0, 0]#captain obvious is obvious
+			frame[self.logic.largest_ball_xy[1],:] = [0, 0, 255]#locked ball horizontal
+			frame[:,self.logic.largest_ball_xy[0]] = [0, 0, 255]#locked ball vertical
 			cv2.imshow('frame', frame)
 			
 			#wait w/ openCV, pygame

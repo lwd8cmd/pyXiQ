@@ -47,7 +47,7 @@ def choose_color(event,x,y,flags,param):
 		mouse_y	= y
 		brush_size	= cv2.getTrackbarPos('brush_size','image')
 		noise		= cv2.getTrackbarPos('noise','image')
-		update_i	= 20
+		update_i	= 60
 		change_color()
 
 cv2.namedWindow('tava')
