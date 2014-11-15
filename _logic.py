@@ -59,6 +59,7 @@ class Logic(_cam.Cam):
 		if self.count_i == 0:
 			self.motors.move(0, 0, 0)
 			self.motors.update()
+		self.motors.motor_write(1, 'gb')
 		self.motors.read_buffer(1)
 		if self.motors.button:
 			self.set_state(self.S_FIND_BALL)
