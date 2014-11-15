@@ -18,7 +18,7 @@ class UI(object):
 		self.size = (self.width, self.height) = self.background.get_size()
 		self.screen = pygame.display.set_mode((self.size), pygame.DOUBLEBUF)
 		self.clock = pygame.time.Clock()
-		self.fps = 4
+		self.fps = 5
 		self.font = pygame.font.SysFont('mono', 16, bold=False)
 		self.font2 = pygame.font.SysFont('mono', 14, bold=False)
 		self.GREEN = (0, 255, 0)

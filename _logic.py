@@ -13,7 +13,7 @@ class Logic(_cam.Cam):
 		self.motors	= motors
 		self.state	= 0
 		self.S_MANUAL, self.S_FIND_BALL, self.S_WAIT, self.S_TURN, self.S_FOLLOW_BALL, self.S_FOLLOW_BALL_BLIND, self.S_FIND_GATE, self.S_AIM, self.S_KICK, \
-			self.S_FIND_LOST_BALL, self.S_FIND_GATE_FAR, self.S_FOLLOW_GATE_FAR, self.S_STRAFE, self.S_STALLED, self.S_STALLEDB \
+			self.S_FIND_GATE_FAR, self.S_FIND_LOST_BALL, self.S_FOLLOW_GATE_FAR, self.S_STRAFE, self.S_STALLED, self.S_STALLEDB \
 			= range(15)
 		self.state_names	= {
 			self.S_MANUAL : 'manuaalne',
@@ -59,6 +59,7 @@ class Logic(_cam.Cam):
 		if self.count_i == 0:
 			self.motors.move(0, 0, 0)
 			self.motors.update()
+			self.motors.button = False
 		self.motors.motor_write(1, 'gb')
 		self.motors.read_buffer(1)
 		if self.motors.button:
@@ -82,9 +83,9 @@ class Logic(_cam.Cam):
 			
 	def f_turn(self):#turn to see smth else
 		if self.count_i == 0:
-			self.motors.move(0, 0, 40)
+			self.motors.move(0, 0, 60)
 			self.motors.update()
-		if self.count_i > 30:#timeout, wait
+		if self.count_i > 15:#timeout, wait
 			self.set_state(self.S_FIND_BALL)
 		
 	def f_find_ball(self):#turn until see ball
@@ -92,21 +93,24 @@ class Logic(_cam.Cam):
 			self.set_state(self.S_FIND_GATE)
 			return
 		if self.count_i == 0:
-			self.motors.move(0, 0, 40)
+			self.motors.move(0, 0, 60)
 			self.motors.update()
 		if self.largest_ball is not None:
 			self.set_state(self.S_FOLLOW_BALL)
 			return
-		if self.count_i > 120:#timeout, wait
+		if self.count_i > 70:#timeout, wait
 			self.set_state(self.S_FIND_GATE_FAR)
 			
 	def f_find_gate_far(self):
 		if self.count_i == 0:
 			self.gate_far = 0 if self.gates_last[0][0] > self.gates_last[1][0] else 1
-			self.motors.move(0, 0, 40)
+			self.motors.move(0, 0, 60)
 			self.motors.update()
 		if self.motors.has_ball:
 			self.set_state(self.S_FIND_GATE)
+			return
+		if self.largest_ball is not None:
+			self.set_state(self.S_FOLLOW_BALL)
 			return
 		if self.gates[self.gate_far] is not None:#gate found
 			self.set_state(self.S_FOLLOW_GATE_FAR)
@@ -115,13 +119,16 @@ class Logic(_cam.Cam):
 		if self.motors.has_ball:
 			self.set_state(self.S_FIND_GATE)
 			return
+		if self.largest_ball is not None:
+			self.set_state(self.S_FOLLOW_BALL)
+			return
 		gate	= self.gates[self.gate_far]
 		if gate is None:#gate is lost
 			self.set_state(self.S_FIND_GATE_FAR)
 			return
 			
 		if gate[0] > 100:#follow
-			self.motors.move(60, gate[1], gate[1]*10)
+			self.motors.move(80, gate[1], gate[1]*10)
 			self.motors.update()
 		else:#find ball
 			self.set_state(self.S_FIND_BALL)
@@ -135,11 +142,11 @@ class Logic(_cam.Cam):
 			return
 			
 		r, alpha	= self.largest_ball
-		if r > 29:#follow
-			self.motors.move(40, alpha, alpha*20)
+		if r > 35:#follow
+			self.motors.move(80, alpha, alpha*20)
 			self.motors.update()
 		else:#ball is going to the blind area, follow blind
-			self.motors.move(20, alpha, 0)
+			self.motors.move(30, alpha, 0)
 			self.motors.update()
 			self.set_state(self.S_FOLLOW_BALL_BLIND)
 			
@@ -149,7 +156,10 @@ class Logic(_cam.Cam):
 		if self.motors.has_ball:
 			self.set_state(self.S_FIND_GATE)
 			return
-		if self.count_i > 50 + self.ball_blind_i * 30:
+		if self.count_i > 25:
+			self.motors.move(20, self.motors.direction, 0)
+			self.motors.update()
+		if self.count_i > 35 + self.ball_blind_i * 20:
 			if self.ball_blind_i > 3:
 				self.set_state(self.S_TURN)
 				return
@@ -197,7 +207,7 @@ class Logic(_cam.Cam):
 			self.motors.coil_kick()
 			self.motors.move(0, 0, 0)
 			self.motors.update()
-		if self.count_i > 60:
+		if self.count_i > 180:
 			self.set_state(self.S_FIND_BALL)
 			return
 			

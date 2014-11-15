@@ -22,7 +22,7 @@ class Cam(threading.Thread):
 		self.run_it	= True
 		self.gate	= 0#0==yellow,1==blue
 		self.gates	= [None, None]
-		self.gates_last = [[0, 0], [0, 0]]
+		self.gates_last = [[999, 0], [999, 0]]
 		self.frame_balls	= []#balls[]=[x,y,w,h,area]
 		self.largest_ball	= None
 		self.largest_ball_xy	= [0,0]

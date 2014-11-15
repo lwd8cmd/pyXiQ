@@ -30,6 +30,7 @@ class Motors(threading.Thread):
 		self.coil_open	= False
 		self.has_ball	= False
 		self.ball_status	= 0
+		self.button = False
 		
 	def open(self, allow_reset = False):
 		try:
@@ -136,15 +137,19 @@ class Motors(threading.Thread):
 					char	= self.motors[i].read(1)
 					if char == '\n':
 						print(i, self.buffers[i])
-						if self.buffers[i][:7] == '<stall:':
-							self.stalled[i]	= not self.buffers[i][7:8] == '0'
+						if self.buffers[i][:3] == '<b:':
+							self.button = (self.buffers[i][3:4] == '1')
+						elif self.buffers[i][:7] == '<stall:':
+							self.stalled[i]	= (not self.buffers[i][7:8] == '0')
 						self.buffers[i]	= ''
+						#print(i, self.buffers[i])
 					else:
 						self.buffers[i] += char
 				except:
+					print('motors: except')
 					continue
 		except:
-			return
+			print('motors: except')
 			
 	def read_buffer_coil(self):
 		try:
@@ -177,6 +182,12 @@ class Motors(threading.Thread):
 				self.sds[i]	= int(self.sds[i] * 150.0 / maxs)
 		for i in range(3):
 			self.motor_write(i, 'sd' + str(self.sds[i]))
+		
+	def read_buffers(self):
+		if not self.is_opened:
+			#print('motors: not opened')
+			return
+		for i in range(3):
 			self.read_buffer(i)
 		self.read_buffer_coil()
 		
