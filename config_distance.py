@@ -8,10 +8,11 @@ with open('colors.pkl', 'rb') as fh:
 	colors_lookup = pickle.load(fh)
 ys	= []
 i	= 0
-distances	= np.linspace(30, 300, 6)
+distances	= np.linspace(30, 250, 4)
+tmp = 14
 
 print('Press q to QUIT')
-print('Press o when ball is ' + str(distances[i]) + 'cm from the robot')
+print('Press o when ball is ' + str(distances[i] - tmp) + 'cm from the robot')
 
 cv2.namedWindow('frame')
 cv2.moveWindow('frame', 400, 0)
@@ -49,7 +50,7 @@ while(True):
 		i += 1
 		if i == len(distances):
 			break
-		print('Press o when ball is ' + str(distances[i]) + 'cm from the robot')
+		print('Press o when ball is ' + str(distances[i] - tmp) + 'cm from the robot')
 		
 if len(ys) == len(distances):
 	ys	= np.array(ys)

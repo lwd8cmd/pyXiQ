@@ -18,8 +18,7 @@ class UI(object):
 		self.size = (self.width, self.height) = self.background.get_size()
 		self.screen = pygame.display.set_mode((self.size), pygame.DOUBLEBUF)
 		self.clock = pygame.time.Clock()
-		self.fps = 8
-		self.playtime = 0.0
+		self.fps = 4
 		self.font = pygame.font.SysFont('mono', 16, bold=False)
 		self.font2 = pygame.font.SysFont('mono', 14, bold=False)
 		self.GREEN = (0, 255, 0)
@@ -27,8 +26,6 @@ class UI(object):
 		self.BLACK = (0, 0, 0)
 		self.RED = (255, 0, 0)
 		self.HFOV	= 30 * np.pi / 180
-		self.status_last	= 0
-		self.history	= deque([], maxlen=9)
 		
 	def strint(self, val):
 		return str(int(round(val)))
@@ -44,8 +41,7 @@ class UI(object):
 		cv2.moveWindow('frame', 400, 0)
 		pygame_keys_dir	= [pygame.K_a,pygame.K_q,pygame.K_w,pygame.K_e,pygame.K_d,pygame.K_x,pygame.K_s,pygame.K_z]
 		pygame_keys_rotate	= [pygame.K_n,pygame.K_m]
-		pygame_keys_states	= [pygame.K_0,pygame.K_1,pygame.K_3,pygame.K_4,pygame.K_5,pygame.K_6,pygame.K_7]
-		pygame_keys_states_i= [0,1,3,4,5,6,7]
+		pygame_keys_states	= [pygame.K_0,pygame.K_1,pygame.K_2,pygame.K_3,pygame.K_4,pygame.K_5,pygame.K_6,pygame.K_7,pygame.K_8]
 		pygame_keys_gates	= [pygame.K_y,pygame.K_b]
 		
 		while running:
@@ -73,7 +69,7 @@ class UI(object):
 						omega		= 0
 					for index, item in enumerate(pygame_keys_states):#0-9==state
 						if item == event.key:
-							self.logic.set_state(pygame_keys_states_i[index])
+							self.logic.set_state(index)
 					for index, item in enumerate(pygame_keys_gates):#yb==change gate
 						if item == event.key:
 							self.logic.gate	= index
@@ -94,7 +90,7 @@ class UI(object):
 								no_key 		= 0
 						
 			if self.logic.state == 0:#set speed
-				self.logic.motors.move(speed * 100, direction, omega * 20)
+				self.logic.motors.move(speed * 50, direction, omega * 40)
 				self.logic.motors.update()
 			
 			#draw bg
@@ -116,17 +112,13 @@ class UI(object):
 				self.screen.blit(self.font.render(
 					self.strint(self.logic.motors.sds[i]),
 					False, self.WHITE), (40, 251 + i * 22))
-			self.screen.blit(self.font.render(self.logic.fps, False, self.WHITE), (40, 317))
+			self.screen.blit(self.font.render(self.strint(self.logic.fps), False, self.WHITE), (40, 317))
 			#self.screen.blit(self.font.render(self.logic.state_names[self.logic.state], False, self.WHITE), (40, 339))
 			self.screen.blit(self.font.render(('+' if self.logic.motors.has_ball else '-'), False, self.WHITE), (40, 339))
 			self.screen.blit(self.font.render(('blue' if self.logic.gate else 'yellow'), False, self.WHITE), (60, 361))
 			
 			#draw status history
-			status	= self.logic.state
-			if status is not self.status_last:
-				self.status_last = status
-				self.history.append(time.strftime('%H:%M:%S') + ' ' + str(status) + ' ' + self.logic.state_names[status])
-			for idx, val in enumerate(self.history):
+			for idx, val in enumerate(self.logic.history):
 				self.screen.blit(self.font2.render(val, False, self.BLACK), (3, 383 + idx * 16))
 
 			#draw robot
@@ -152,11 +144,18 @@ class UI(object):
 				
 			#show camera feed
 			frame	= np.zeros((480,640,3))
-			frame[self.logic.t_ball > 0] = [0, 0, 255]#balls are shown as red
-			frame[self.logic.t_gatey > 0] = [0, 255, 255]#yellow gate is yellow
-			frame[self.logic.t_gateb > 0] = [255, 0, 0]#captain obvious is obvious
-			frame[self.logic.largest_ball_xy[1],:] = [0, 0, 255]#locked ball horizontal
-			frame[:,self.logic.largest_ball_xy[0]] = [0, 0, 255]#locked ball vertical
+			if True:
+				frame[self.logic.t_ball > 0] = [0, 0, 255]#balls are shown as red
+				frame[self.logic.t_gatey > 0] = [0, 255, 255]#yellow gate is yellow
+				frame[self.logic.t_gateb > 0] = [255, 0, 0]#blue gate
+				frame[self.logic.fragmented == 4] = [0, 255, 0]#green
+				frame[self.logic.fragmented == 5] = [255, 255, 255]#white
+				frame[self.logic.fragmented == 6] = [255, 255, 0]#dark
+				frame[self.logic.largest_ball_xy[1],:] = [0, 0, 255]#locked ball horizontal
+				frame[:,self.logic.largest_ball_xy[0]] = [0, 0, 255]#locked ball vertical
+			else:
+				frame[self.logic.t_ball > 0] = [0, 0, 255]
+				frame[self.logic.t_debug > 0] = [0, 255, 255]
 			cv2.imshow('frame', frame)
 			
 			#wait w/ openCV, pygame

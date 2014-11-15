@@ -29,8 +29,9 @@ class Motors(threading.Thread):
 		self.coil_enabled	= True
 		self.coil_open	= False
 		self.has_ball	= False
+		self.ball_status	= 0
 		
-	def open(self, allow_reset = True):
+	def open(self, allow_reset = False):
 		try:
 			ports = subprocess.check_output('ls /dev/ttyACM*', shell=True).split('\n')[:-1]
 		except:
@@ -41,14 +42,15 @@ class Motors(threading.Thread):
 			try:
 				connection_opened = False
 				while not connection_opened:
-					connection = serial.Serial(port, baudrate=115200, timeout=1)
+					connection = serial.Serial(port, baudrate=115200, timeout=0.8)
 					connection_opened = connection.isOpen()
 				i	= 0
-				#connection.flush()
+				time.sleep(0.5)
+				connection.flush()
 				while True:
 					try:
 						i	+= 1
-						if i > 4:
+						if i > 6:
 							break
 						connection.write('?\n')
 						id_string = connection.readline()
@@ -152,7 +154,10 @@ class Motors(threading.Thread):
 					if char == '\n':
 						#print(self.coil_buffer)
 						if self.coil_buffer[:3] == '<b:':
-							self.has_ball	= self.coil_buffer[3:4] == '4'
+							has_ball	= self.coil_buffer[3:4] == '4'
+							#self.ball_status	= min(3, max(0, self.ball_status + (1 if has_ball else -1)))
+							self.has_ball	= has_ball#self.ball_status > 1
+							print('motors: ball ' + str(has_ball))
 						self.coil_buffer	= ''
 					else:
 						self.coil_buffer += char
