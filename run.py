@@ -24,6 +24,8 @@ else:
 	print('Press Ctrl-c to exit.')
 	while True:
 		try:
+			logic.gate = 0
+			logic.set_state(logic.S_WAIT)
 			time.sleep(1)
 		except KeyboardInterrupt:
 			print('Ctrl-c received! Killing threads.')

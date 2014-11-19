@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import cPickle as pickle
 from scipy.optimize import curve_fit
+import _cam_settings
 
 cap = cv2.VideoCapture(0)
 with open('colors.pkl', 'rb') as fh:

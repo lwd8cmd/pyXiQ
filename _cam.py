@@ -25,7 +25,7 @@ class Cam(threading.Thread):
 		self.gates_last = [[999, 0], [999, 0]]
 		self.frame_balls	= []#balls[]=[x,y,w,h,area]
 		self.largest_ball	= None
-		self.largest_ball_xy	= [0,0]
+		#self.largest_ball_xy	= [0,0]
 		self.fps	= 60
 		with open('colors.pkl', 'rb') as fh:
 			self.colors_lookup = pickle.load(fh)
@@ -42,6 +42,7 @@ class Cam(threading.Thread):
 		self.t_debug	= np.zeros((480,640), dtype=np.uint8)
 		self.debugi	= 0
 		self.ball_history	= deque([], maxlen=60)
+		self.cam_locked	= False
 		
 	def open(self):
 		self.cam = cv2.VideoCapture(0)
@@ -62,14 +63,14 @@ class Cam(threading.Thread):
 		
 	def calc_location(self, x, y, is_ball):
 		d	= (self.CAM_HEIGHT - (self.H_BALL if is_ball else self.H_GATE)) * np.tan(self.CAM_ANGLE - self.CAM_D_ANGLE * y) - self.CAM_DISTANCE
-		alpha	= self.CAM_D_ANGLE * (x - 320) - 0.0082
+		alpha	= self.CAM_D_ANGLE * (x - 320)+0.063#+0.04# + 0.04#0.0082
 		r	= d / np.cos(alpha)
 		return (r, alpha)
 			
 	def analyze_balls(self, t_ball):
 		contours, hierarchy = cv2.findContours(t_ball, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 		self.largest_ball	= None
-		self.largest_ball_xy	= [0,0]
+		#self.largest_ball_xy	= [0,0]
 		s_max	= 0
 		self.frame_balls	= []
 		#self.t_debug	= np.zeros((480,640), dtype=np.uint8)
@@ -88,11 +89,12 @@ class Cam(threading.Thread):
 					black_pxs = ((pxs[:-10]==6)*(pxs[10:]==5)).sum() + ((pxs[:-5]==6)*(pxs[5:]==5)).sum()
 					if black_pxs < 4:
 						coords	= self.calc_location(x + w / 2, y + h / 2, True)
-						self.frame_balls.append(coords)
-						if s > s_max:
-							s_max	= s
-							self.largest_ball	= coords
-							self.largest_ball_xy	= [x + w / 2, y + h / 2]
+						if coords[0] < 300:
+							self.frame_balls.append(coords)
+							if s > s_max:
+								s_max	= s
+								self.largest_ball	= [coords[0], coords[1], x, y, w, h, s]
+								#self.largest_ball_xy	= [x + w / 2, y + h / 2]
 					
 	def analyze_gate(self, t_gate, gate_nr):
 		contours, hierarchy = cv2.findContours(t_gate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -117,10 +119,15 @@ class Cam(threading.Thread):
 		
 	def analyze_frame(self):
 		try:
+			self.cam_locked	= True
 			_, img = self.cam.read()
+			#self.t_debug = img
+			#time.sleep(0.1)
 			segment.segment(img, self.fragmented, self.t_ball, self.t_gatey, self.t_gateb)
+			#time.sleep(0.1)
+			self.cam_locked	= False
 			self.analyze_balls(self.t_ball)
 			self.analyze_gate(self.t_gatey, 0)
 			self.analyze_gate(self.t_gateb, 1)
 		except:
-			return
+			print('cam: except')

@@ -90,10 +90,11 @@ class Motors(threading.Thread):
 		time.sleep(2)
 		
 	def motor_write(self, i, comm):
-		try:
-			self.motors[i].write(comm + '\n')
-		except:
-			print('motors: err write ' + comm)
+		if self.is_opened:
+			try:
+				self.motors[i].write(comm + '\n')
+			except:
+				print('motors: err write ' + comm)
 			
 	def coil_write(self, comm):
 		try:
@@ -103,7 +104,7 @@ class Motors(threading.Thread):
 		
 	def coil_kick(self):
 		if self.coil_open:
-			self.coil_write('k1000')
+			self.coil_write('k700')
 	
 	def close(self):
 		for idx, motor in enumerate(self.motors):
@@ -117,6 +118,7 @@ class Motors(threading.Thread):
 		self.motors	= [None, None, None]
 		if self.coil is not None and self.coil.isOpen():
 			self.coil_write('d')
+			self.coil_write('ts')
 			try:
 				self.coil.close()
 			except:
@@ -136,11 +138,14 @@ class Motors(threading.Thread):
 				try:
 					char	= self.motors[i].read(1)
 					if char == '\n':
-						print(i, self.buffers[i])
-						if self.buffers[i][:3] == '<b:':
+						#print(i, self.buffers[i])
+						if i == 1 and self.buffers[i][:3] == '<b:':
 							self.button = (self.buffers[i][3:4] == '1')
+						if i == 0 and self.buffers[i][:3] == '<b:':
+							self.has_ball = (self.buffers[i][3:4] == '0')
 						elif self.buffers[i][:7] == '<stall:':
 							self.stalled[i]	= (not self.buffers[i][7:8] == '0')
+							print('stall', i)
 						self.buffers[i]	= ''
 						#print(i, self.buffers[i])
 					else:
@@ -167,16 +172,17 @@ class Motors(threading.Thread):
 					else:
 						self.coil_buffer += char
 				except:
+					print('motors: err red_buffer_coil b')
 					continue
 		except:
-			return
+			print('motors: err red_buffer_coil')
 		
 	def update(self):
 		if not self.is_opened:
 			return
 		maxs	= max(self.sds)
 		if maxs > 150:
-			#print('motors: too fast', self.sds)
+			print('motors: too fast', self.sds)
 			#return
 			for i in range(3):
 				self.sds[i]	= int(self.sds[i] * 150.0 / maxs)
@@ -189,7 +195,7 @@ class Motors(threading.Thread):
 			return
 		for i in range(3):
 			self.read_buffer(i)
-		self.read_buffer_coil()
+		#self.read_buffer_coil()
 		
 	def run(self):
 		if self.open():
