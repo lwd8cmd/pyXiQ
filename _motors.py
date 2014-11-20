@@ -48,7 +48,7 @@ class Motors(threading.Thread):
 				i	= 0
 				time.sleep(0.5)
 				connection.flush()
-				while True:
+				while self.run_it:
 					try:
 						i	+= 1
 						if i > 6:
@@ -127,6 +127,7 @@ class Motors(threading.Thread):
 			self.coil_open	= False
 	
 	def move(self, speed, direction, omega):
+		#print(speed, direction, omega)
 		self.speed	= speed
 		self.direction	= direction
 		self.angular_velocity	= omega
@@ -138,10 +139,10 @@ class Motors(threading.Thread):
 				try:
 					char	= self.motors[i].read(1)
 					if char == '\n':
-						#print(i, self.buffers[i])
+						print(i, self.buffers[i])
 						if i == 1 and self.buffers[i][:3] == '<b:':
 							self.button = (self.buffers[i][3:4] == '1')
-						if i == 0 and self.buffers[i][:3] == '<b:':
+						if i == 0 and self.buffers[i][:3] == '<p:':
 							self.has_ball = (self.buffers[i][3:4] == '0')
 						elif self.buffers[i][:7] == '<stall:':
 							self.stalled[i]	= (not self.buffers[i][7:8] == '0')

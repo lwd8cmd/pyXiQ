@@ -32,7 +32,7 @@ class Cam(threading.Thread):
 			segment.set_table(self.colors_lookup)
 		self.CAM_D_ANGLE	= 60 * np.pi / 180 / 640
 		with open('distances.pkl', 'rb') as fh:
-			self.CAM_HEIGHT, self.CAM_DISTANCE, self.CAM_ANGLE = pickle.load(fh)
+			self.CAM_HEIGHT, self.CAM_DISTANCE, self.CAM_ANGLE, self.Y_FAR = pickle.load(fh)
 		self.H_BALL	= 2.15#half height
 		self.H_GATE	= 10
 		self.fragmented	= np.zeros((480,640), dtype=np.uint8)
@@ -70,31 +70,42 @@ class Cam(threading.Thread):
 	def analyze_balls(self, t_ball):
 		contours, hierarchy = cv2.findContours(t_ball, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 		self.largest_ball	= None
-		#self.largest_ball_xy	= [0,0]
 		s_max	= 0
 		self.frame_balls	= []
 		#self.t_debug	= np.zeros((480,640), dtype=np.uint8)
 		for contour in contours:
 			s	= cv2.contourArea(contour)
-			if s > 10:
-				x, y, w, h = cv2.boundingRect(contour)
-				ratio	= float(w) / h
-				ratio	= max(ratio, 1/ratio)
-				if ratio < 1.6:#ratio < 1.2 or (ratio < 1.4 and w < 10) or (ratio < 1.7 and w < 9):
-					ys	= np.arange(y + h, 480)
-					xs	= np.linspace(x + w / 2, 320, num=len(ys)).astype('uint16')
-					pxs	= self.fragmented[np.tile(ys, 5), np.concatenate((xs-2, xs-1, xs, xs+1, xs+2))]
-					#self.ball_history.append(((pxs[:-10]==6)*(pxs[10:]==5)).sum())
-					#print(sum(self.ball_history)*1.0/len(self.ball_history))
-					black_pxs = ((pxs[:-10]==6)*(pxs[10:]==5)).sum() + ((pxs[:-5]==6)*(pxs[5:]==5)).sum()
-					if black_pxs < 4:
-						coords	= self.calc_location(x + w / 2, y + h / 2, True)
-						if coords[0] < 300:
-							self.frame_balls.append(coords)
-							if s > s_max:
-								s_max	= s
-								self.largest_ball	= [coords[0], coords[1], x, y, w, h, s]
-								#self.largest_ball_xy	= [x + w / 2, y + h / 2]
+			if s < 4:
+				#print('small', s)
+				continue
+			x, y, w, h = cv2.boundingRect(contour)
+			if s < 10 and y > self.Y_FAR:
+				#print('small2', s, y)
+				continue
+			ratio	= float(w) / h
+			if ratio < 0.5 or ratio > 2.0:
+				#print('ratio', ratio)
+				continue
+			ys	= np.repeat(np.arange(y + h, 480), 5)
+			xs	= np.linspace(x + w / 2, 320, num=len(ys)/5).astype('uint16')
+			xs	= np.repeat(xs, 5)
+			xs[::5] -= 2
+			xs[1::5] -= 1
+			xs[3::5] += 1
+			xs[4::5] += 2
+			pxs	= self.fragmented[ys, xs]
+			black_pixs	= sum([((pxs[:-i]==6)*(pxs[i:]==5)).sum() for i in xrange(15,20)])
+			if black_pixs > 10:
+				#print('black', black_pixs)
+				continue
+			coords	= self.calc_location(x + w / 2, y + h / 2, True)
+			if coords[0] > 300:
+				#print('far', coords[0])
+				continue
+			self.frame_balls.append(coords)
+			if s > s_max:
+				s_max	= s
+				self.largest_ball	= [coords[0], coords[1], x, y, w, h, s]
 					
 	def analyze_gate(self, t_gate, gate_nr):
 		contours, hierarchy = cv2.findContours(t_gate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)

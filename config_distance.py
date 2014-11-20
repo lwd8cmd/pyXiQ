@@ -9,8 +9,8 @@ with open('colors.pkl', 'rb') as fh:
 	colors_lookup = pickle.load(fh)
 ys	= []
 i	= 0
-distances	= np.linspace(30, 250, 4)
 tmp = 14
+distances	= np.linspace(30, 280, 5)
 
 print('Press q to QUIT')
 print('Press o when ball is ' + str(distances[i] - tmp) + 'cm from the robot')
@@ -35,6 +35,7 @@ while(True):
 			_x, _y, _w, _h = cv2.boundingRect(contour)
 			y	= _y + _h / 2
 			x	= _x + _w / 2
+	#print(max_area)
 			
 	if y is not None:
 		cv2.line(yuv, (0,y),(640,y),(255,255,255),1)
@@ -50,6 +51,7 @@ while(True):
 		ys.append(y)
 		i += 1
 		if i == len(distances):
+			ymax = y
 			break
 		print('Press o when ball is ' + str(distances[i] - tmp) + 'cm from the robot')
 		
@@ -73,6 +75,6 @@ if len(ys) == len(distances):
 	
 	# When everything done, release the capture
 	with open('distances.pkl', 'wb') as fh:
-		pickle.dump(p, fh, -1)
+		pickle.dump([p[0], p[1], p[2], ymax], fh, -1)
 cap.release()
 cv2.destroyAllWindows()

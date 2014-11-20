@@ -43,6 +43,7 @@ class UI(object):
 		pygame_keys_rotate	= [pygame.K_n,pygame.K_m]
 		pygame_keys_states	= [pygame.K_0,pygame.K_1,pygame.K_2,pygame.K_3,pygame.K_4,pygame.K_5,pygame.K_6,pygame.K_7,pygame.K_8]
 		pygame_keys_gates	= [pygame.K_y,pygame.K_b]
+		S_MANUAL = 0
 		
 		while running:
 			#keylisteners
@@ -65,7 +66,7 @@ class UI(object):
 					elif event.key == pygame.K_t:
 						self.logic.motors.coil_write('m')
 					elif event.key == pygame.K_SPACE:#SPACE==stop
-						self.logic.state	= 0
+						self.logic.set_state(S_MANUAL)
 						speed		= 0
 						direction	= 0
 						omega		= 0
@@ -78,20 +79,20 @@ class UI(object):
 					if not (self.logic.state == 5 or self.logic.state == 6):
 						for index, item in enumerate(pygame_keys_dir):#aqwedxsz==move
 							if item == event.key:
-								self.logic.state	= 0
+								self.logic.set_state(S_MANUAL)
 								speed		= 1
 								direction	= -np.pi/2 + index * np.pi/4
 								omega		= 0
 								no_key 		= 0
 						for index, item in enumerate(pygame_keys_rotate):#nm==rotate
 							if item == event.key:
-								self.logic.state	= 0
+								self.logic.set_state(S_MANUAL)
 								speed		= 0
 								direction	= 0
 								omega		= (-1 if index == 0 else 1)
 								no_key 		= 0
 						
-			if self.logic.state == 0:#set speed
+			if self.logic.state == 0 and (speed > 0 or omega is not 0):#set speed
 				self.logic.motors.move(speed * 50, direction, omega * 40)
 				self.logic.motors.update()
 			
@@ -151,10 +152,10 @@ class UI(object):
 					time.sleep(0.001)
 				frame[self.logic.t_ball > 0] = [0, 0, 255]#balls are shown as red
 				frame[self.logic.t_gatey > 0] = [0, 255, 255]#yellow gate is yellow
-				frame[self.logic.t_gateb > 0] = [255, 0, 0]#blue gate
 				frame[self.logic.fragmented == 4] = [0, 255, 0]#green
 				frame[self.logic.fragmented == 5] = [255, 255, 255]#white
 				frame[self.logic.fragmented == 6] = [255, 255, 0]#dark
+				frame[self.logic.t_gateb > 0] = [255, 0, 0]#blue gate
 				tmp_f	= self.logic.largest_ball
 				if tmp_f is not None:
 					frame[tmp_f[3] + tmp_f[5] // 2,:] = [0, 0, 255]#locked ball horizontal
