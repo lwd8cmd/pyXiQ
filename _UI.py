@@ -45,7 +45,7 @@ class UI(object):
 		pygame_keys_gates	= [pygame.K_y,pygame.K_b]
 		S_MANUAL = 0
 		
-		while running:
+		while running and self.logic.run_it:
 			#keylisteners
 			if no_key > 8:
 				speed	= 0
@@ -79,14 +79,16 @@ class UI(object):
 					if not (self.logic.state == 5 or self.logic.state == 6):
 						for index, item in enumerate(pygame_keys_dir):#aqwedxsz==move
 							if item == event.key:
-								self.logic.set_state(S_MANUAL)
-								speed		= 1
-								direction	= -np.pi/2 + index * np.pi/4
+								if self.logic.state is not S_MANUAL:
+									self.logic.set_state(S_MANUAL)
+								speed		= 3
+								direction	= -np.pi/2 + index * np.pi/4#self.logic.motors.DEG120
 								omega		= 0
 								no_key 		= 0
 						for index, item in enumerate(pygame_keys_rotate):#nm==rotate
 							if item == event.key:
-								self.logic.set_state(S_MANUAL)
+								if self.logic.state is not S_MANUAL:
+									self.logic.set_state(S_MANUAL)
 								speed		= 0
 								direction	= 0
 								omega		= (-1 if index == 0 else 1)
@@ -114,11 +116,11 @@ class UI(object):
 			for i in range(3):
 				self.screen.blit(self.font.render(
 					self.strint(self.logic.motors.sds[i]),
-					False, self.WHITE), (40, 251 + i * 22))
-			self.screen.blit(self.font.render(self.strint(self.logic.fps), False, self.WHITE), (40, 317))
-			#self.screen.blit(self.font.render(self.logic.state_names[self.logic.state], False, self.WHITE), (40, 339))
-			self.screen.blit(self.font.render(('+' if self.logic.motors.has_ball else '-'), False, self.WHITE), (40, 339))
-			self.screen.blit(self.font.render(('blue' if self.logic.gate else 'yellow'), False, self.WHITE), (60, 361))
+					False, self.WHITE), (48, 250 + i * 19))
+			self.screen.blit(self.font.render(self.strint(self.logic.fps), False, self.WHITE), (48, 307))
+			self.screen.blit(self.font.render(('+' if self.logic.motors.has_ball else '-'), False, self.WHITE), (48, 326))
+			self.screen.blit(self.font.render(('blue' if self.logic.gate else 'yellow'), False, self.WHITE), (48, 345))
+			self.screen.blit(self.font.render(self.logic.motors.opened_status, False, self.WHITE), (48, 364))
 			
 			#draw status history
 			for idx, val in enumerate(self.logic.history):
@@ -156,6 +158,8 @@ class UI(object):
 				frame[self.logic.fragmented == 5] = [255, 255, 255]#white
 				frame[self.logic.fragmented == 6] = [255, 255, 0]#dark
 				frame[self.logic.t_gateb > 0] = [255, 0, 0]#blue gate
+				frame[self.logic.t_debug > 0] = [0,0,0]
+				frame[:,320]	= [0,0,0]
 				tmp_f	= self.logic.largest_ball
 				if tmp_f is not None:
 					frame[tmp_f[3] + tmp_f[5] // 2,:] = [0, 0, 255]#locked ball horizontal

@@ -25,9 +25,8 @@ class Cam(threading.Thread):
 		self.gates_last = [[999, 0], [999, 0]]
 		self.frame_balls	= []#balls[]=[x,y,w,h,area]
 		self.largest_ball	= None
-		#self.largest_ball_xy	= [0,0]
 		self.fps	= 60
-		with open('colors.pkl', 'rb') as fh:
+		with open('colors/colors.pkl', 'rb') as fh:
 			self.colors_lookup = pickle.load(fh)
 			segment.set_table(self.colors_lookup)
 		self.CAM_D_ANGLE	= 60 * np.pi / 180 / 640
@@ -43,6 +42,7 @@ class Cam(threading.Thread):
 		self.debugi	= 0
 		self.ball_history	= deque([], maxlen=60)
 		self.cam_locked	= False
+		self.gate	= 0
 		
 	def open(self):
 		self.cam = cv2.VideoCapture(0)
@@ -59,10 +59,13 @@ class Cam(threading.Thread):
 		return self.cam.isOpened()
 			
 	def close(self):
-		self.cam.release()
+		try:
+			self.cam.release()
+		except:
+			print('cam: close err')
 		
-	def calc_location(self, x, y, is_ball):
-		d	= (self.CAM_HEIGHT - (self.H_BALL if is_ball else self.H_GATE)) * np.tan(self.CAM_ANGLE - self.CAM_D_ANGLE * y) - self.CAM_DISTANCE
+	def calc_location(self, x, y, h):
+		d	= (self.CAM_HEIGHT - h) * np.tan(self.CAM_ANGLE - self.CAM_D_ANGLE * y) - self.CAM_DISTANCE
 		alpha	= self.CAM_D_ANGLE * (x - 320)+0.063#+0.04# + 0.04#0.0082
 		r	= d / np.cos(alpha)
 		return (r, alpha)
@@ -83,6 +86,9 @@ class Cam(threading.Thread):
 				#print('small2', s, y)
 				continue
 			ratio	= float(w) / h
+			if y + h > 477 and s > 25:
+				s += 10000
+				ratio	= 1
 			if ratio < 0.5 or ratio > 2.0:
 				#print('ratio', ratio)
 				continue
@@ -98,7 +104,10 @@ class Cam(threading.Thread):
 			if black_pixs > 10:
 				#print('black', black_pixs)
 				continue
-			coords	= self.calc_location(x + w / 2, y + h / 2, True)
+			if s > 10000:
+				coords	= self.calc_location(x + w / 2, y, 2*self.H_BALL)
+			else:
+				coords	= self.calc_location(x + w / 2, y + h / 2, self.H_BALL)
 			if coords[0] > 300:
 				#print('far', coords[0])
 				continue
@@ -114,31 +123,27 @@ class Cam(threading.Thread):
 		self.debugi += 1
 		for contour in contours:
 			s	= cv2.contourArea(contour)
-			if s > 500:
-				x, y, w, h = cv2.boundingRect(contour)
-				if h > 18:#25:
-					#print(w * h / s)
-					#if self.debugi % 10 == 0:
-					#	print(s, w, h, x, y, w * 1.0 / h)
-					#ratio	= w / h
-					#if ratio > 0.8 and ratio < 1.2:
-					r, alpha	= self.calc_location(x + w / 2, y + h / 2, False)
-					if s > s_max:
-						s_max	= s
-						self.gates[gate_nr]	= [r, alpha, w, h, s, x, y]
-						self.gates_last[gate_nr]	= [r, alpha]
+			if s < 500:
+				continue
+			x, y, w, h = cv2.boundingRect(contour)
+			if (h < 18 and y > 2) or (h < 6 and w < 50):
+				continue
+			r, alpha	= self.calc_location(x + w / 2, y + h / 2, self.H_GATE)
+			if s > s_max:
+				s_max	= s
+				self.gates[gate_nr]	= [r, alpha, w, h, s, x, y]
+				self.gates_last[gate_nr]	= [r, alpha]
 		
 	def analyze_frame(self):
-		try:
+		#try:
 			self.cam_locked	= True
 			_, img = self.cam.read()
 			#self.t_debug = img
-			#time.sleep(0.1)
 			segment.segment(img, self.fragmented, self.t_ball, self.t_gatey, self.t_gateb)
-			#time.sleep(0.1)
 			self.cam_locked	= False
 			self.analyze_balls(self.t_ball)
-			self.analyze_gate(self.t_gatey, 0)
-			self.analyze_gate(self.t_gateb, 1)
-		except:
-			print('cam: except')
+			self.analyze_gate((self.t_gatey if self.gate == 0 else self.t_gateb), self.gate)
+			if self.gates[self.gate] is None:
+				self.analyze_gate((self.t_gateb if self.gate == 0 else self.t_gatey), 1 - self.gate)
+		#except:
+		#	print('cam: except')

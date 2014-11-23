@@ -5,7 +5,7 @@ from scipy.optimize import curve_fit
 import _cam_settings
 
 cap = cv2.VideoCapture(0)
-with open('colors.pkl', 'rb') as fh:
+with open('colors/colors.pkl', 'rb') as fh:
 	colors_lookup = pickle.load(fh)
 ys	= []
 i	= 0

@@ -12,7 +12,7 @@ cv2.namedWindow('tava')
 cv2.namedWindow('mask')
 cv2.moveWindow('mask', 400, 0)
 try:
-	with open('colors.pkl', 'rb') as fh:
+	with open('colors/colors.pkl', 'rb') as fh:
 		colors_lookup = pickle.load(fh)
 except:
 	colors_lookup	= np.zeros(0x1000000, dtype=np.uint8)

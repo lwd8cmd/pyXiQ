@@ -22,15 +22,16 @@ class Motors(threading.Thread):
 		self.coil_buffer	= ''
 		self.stalled	= [False, False, False]
 		self.angles	= [-self.DEG120, self.DEG120, 0]
+		self.multi	= [1.0, 1.0, 1.0]
 		self.is_opened	= False
 		self.speed	= 0
 		self.direction	= 0
 		self.angular_velocity	= 0
-		self.coil_enabled	= True
-		self.coil_open	= False
+		self.coil_enabled	= True#True
 		self.has_ball	= False
 		self.ball_status	= 0
 		self.button = False
+		self.opened_status = '?'
 		
 	def open(self, allow_reset = False):
 		try:
@@ -52,7 +53,7 @@ class Motors(threading.Thread):
 					try:
 						i	+= 1
 						if i > 6:
-							break
+							return False
 						connection.write('?\n')
 						id_string = connection.readline()
 						print('motors: readline ' + port + ', ' + id_string.rstrip())
@@ -66,8 +67,6 @@ class Motors(threading.Thread):
 								print('motors: motor ' + str(id_nr) + ' at ' + port)
 							if not None in self.motors and (self.coil is not None or not self.coil_enabled):
 								self.is_opened = True
-								if self.coil_enabled:
-									self.coil_open = True
 								return True
 							break
 					except:
@@ -97,14 +96,16 @@ class Motors(threading.Thread):
 				print('motors: err write ' + comm)
 			
 	def coil_write(self, comm):
-		try:
-			self.coil.write(comm + '\n')
-		except:
-			print('motors: err coil write ' + comm)
+		if self.coil is not None:
+			try:
+				self.coil.write(comm + '\n')
+			except:
+				print('motors: err coil write ' + comm)
 		
-	def coil_kick(self):
-		if self.coil_open:
-			self.coil_write('k700')
+	def coil_kick(self, val):
+		if self.coil is not None:
+			print(str(int(val)))
+			self.coil_write('k' + str(int(val)))
 	
 	def close(self):
 		for idx, motor in enumerate(self.motors):
@@ -113,6 +114,7 @@ class Motors(threading.Thread):
 					self.motor_write(idx, 'sd0')
 					try:
 						motor.close()
+						print('motor ' + str(idx) + ' closed')
 					except:
 						print('motors: err motors close')
 		self.motors	= [None, None, None]
@@ -121,17 +123,17 @@ class Motors(threading.Thread):
 			self.coil_write('ts')
 			try:
 				self.coil.close()
+				print('coil closed')
 			except:
 				print('motors: err coil close')
 			self.coil	= None
-			self.coil_open	= False
 	
 	def move(self, speed, direction, omega):
 		#print(speed, direction, omega)
 		self.speed	= speed
 		self.direction	= direction
 		self.angular_velocity	= omega
-		self.sds	= [int(round(speed*np.sin(direction + self.angles[i]) - omega)) for i in range(3)]
+		self.sds	= [int(round(speed*self.multi[i]*np.sin(direction + self.angles[i]) - omega)) for i in range(3)]
 		
 	def read_buffer(self, i):
 		try:
@@ -139,7 +141,6 @@ class Motors(threading.Thread):
 				try:
 					char	= self.motors[i].read(1)
 					if char == '\n':
-						print(i, self.buffers[i])
 						if i == 1 and self.buffers[i][:3] == '<b:':
 							self.button = (self.buffers[i][3:4] == '1')
 						if i == 0 and self.buffers[i][:3] == '<p:':
@@ -148,7 +149,6 @@ class Motors(threading.Thread):
 							self.stalled[i]	= (not self.buffers[i][7:8] == '0')
 							print('stall', i)
 						self.buffers[i]	= ''
-						#print(i, self.buffers[i])
 					else:
 						self.buffers[i] += char
 				except:
@@ -159,7 +159,7 @@ class Motors(threading.Thread):
 			
 	def read_buffer_coil(self):
 		try:
-			while self.coil_open and self.coil.inWaiting() > 0:
+			while self.coil is not None and self.coil.inWaiting() > 0:
 				try:
 					char	= self.coil.read(1)
 					if char == '\n':
@@ -182,11 +182,11 @@ class Motors(threading.Thread):
 		if not self.is_opened:
 			return
 		maxs	= max(self.sds)
-		if maxs > 150:
+		if maxs > 185:
 			print('motors: too fast', self.sds)
 			#return
 			for i in range(3):
-				self.sds[i]	= int(self.sds[i] * 150.0 / maxs)
+				self.sds[i]	= int(self.sds[i] * 180.0 / maxs)
 		for i in range(3):
 			self.motor_write(i, 'sd' + str(self.sds[i]))
 		
@@ -200,16 +200,18 @@ class Motors(threading.Thread):
 		
 	def run(self):
 		if self.open():
+			self.opened_status = '+'
 			print('motors: opened')
 		else:
+			self.opened_status = '-'
 			print('motors: opening failed')
 			self.close()
 			return
-		if self.coil_open:
+		if self.coil is not None:
 			self.coil_write('c')
 		while self.run_it:
 			self.update()
-			if self.coil_open:
+			if self.coil is not None:
 				self.coil_write('p')
 			time.sleep(1)
 		print('motors: close thread')
