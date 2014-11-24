@@ -45,8 +45,8 @@ class Logic(_cam.Cam):
 		self.profile	= 60 * 10
 		self.count_i	= 0
 		self.count_j	= 0
-		self.angle_history	= deque([], maxlen=30)
-		self.r_history	= deque([], maxlen=30)
+		self.angle_history	= deque([], maxlen=60)
+		self.r_history	= deque([], maxlen=60)
 		self.ball_blind_i	= 0
 		self.history	= deque([], maxlen=9)
 		self.has_ball_enabled = True
@@ -70,7 +70,7 @@ class Logic(_cam.Cam):
 			self.motors.update()
 			self.motors.coil_write('ts')
 			
-		gate	= self.gates[self.gate]
+		gate	= self.gates[self.gate]		
 		if False and gate is not None:
 			ys, xs = np.mgrid[:480,:640]
 			ylim	= gate[6]+gate[3]
@@ -130,7 +130,7 @@ class Logic(_cam.Cam):
 		if self.count_i == 0:
 			self.motors.move(0, 0, min(60, self.count_i*2+30))
 			self.motors.update()
-		if self.count_i > 15:#timeout, wait
+		if self.count_i > 25:#timeout, wait
 			self.set_state(self.S_FIND_BALL)
 		
 	def f_find_ball(self):#turn until see ball
@@ -141,12 +141,12 @@ class Logic(_cam.Cam):
 			self.find_ball_i	= self.count_i
 			self.set_state(self.S_FOLLOW_BALL)
 			return
-		if self.count_i > 100:#timeout, wait
+		if self.count_i > 110 * 60.0 / self.fps:#timeout, wait
 			self.set_state(self.S_FIND_GATE_FAR)
 			return
 		if self.count_i == 0:
 			self.count_i	= self.find_ball_i
-		self.motors.move(0, 0, min(50, self.fps, self.count_i*2+20))
+		self.motors.move(0, 0, min(50, self.fps, self.count_i*2))
 		self.motors.update()
 		
 	def f_follow_ball(self):
@@ -168,9 +168,10 @@ class Logic(_cam.Cam):
 			print('logic follow ball timeout')
 			self.set_state(self.S_TURN)
 			return
-		turn_spd	= min(self.fps, alpha * 4000.0 / min(60, r))
-		spd	= min(210 - abs(turn_spd), r*self.fps/30+10, self.count_i * 6 + 60)
-		turn_spd -= spd * 0.02
+		turn_spd	= min(self.fps, alpha * 4000.0 / min(50, r))
+		spd	= min(210 - abs(turn_spd),r*self.fps/30+10, self.count_i * 6 + 60)
+		turn_spd -= spd * 0.08
+		spd	= min(spd, 210 - abs(turn_spd))
 		self.motors.move(spd, alpha, turn_spd)
 		self.motors.update()
 		if r < 19:#ball is going to the blind area, follow blind
@@ -227,7 +228,6 @@ class Logic(_cam.Cam):
 			
 	def f_aim(self):
 		if self.count_i	== 0:
-			self.count_j = 0
 			self.ball_blind_i = 0
 		if not self.motors.has_ball and self.has_ball_enabled:#ball is lost
 			self.set_state(self.S_FIND_LOST_BALL)
@@ -237,10 +237,8 @@ class Logic(_cam.Cam):
 			self.set_state(self.S_FIND_GATE)
 			return
 		if np.abs(gate[1])*3000.0 < gate[2]:#gate in the center
-			self.count_j += 60.0 / self.fps
-			if self.count_j > 10:#time to wait when gate is in the center (ball stabilizes)
-				self.set_state(self.S_STRAFE)
-				return
+			self.set_state(self.S_STRAFE)
+			return
 		spd	= max(15,min(40, self.fps, (self.count_i + self.turn_ball_i)*2, abs(gate[1] * 100))) * (1 if gate[1] > 0 else -1)
 		if self.ball_in_white:
 			self.motors.move(spd, -np.pi/2, spd)
@@ -257,7 +255,7 @@ class Logic(_cam.Cam):
 			if gate is None:#gate lost, find gate
 				self.set_state(self.S_FIND_GATE)
 				return
-			self.motors.coil_kick(min(1000,gate[0]*2+200))
+			self.motors.coil_kick(min(1000,gate[0]*2+400))
 			self.motors.coil_write('ts')
 			self.motors.move(0, 0, 0)
 			self.motors.update()
@@ -324,33 +322,42 @@ class Logic(_cam.Cam):
 		if self.count_i > 180:
 			self.set_state(self.S_KICK)
 			return
-		if not (gate[2]*gate[3]/gate[4] > 2.2 or (self.fragmented[gate[6]+gate[3]:,320-20:320+20]==6).sum()>3000):#dont see side
+		if not (gate[2]*gate[3]/gate[4] > 3.0 or (self.fragmented[gate[6]+gate[3]:425,320-20:320+20]==6).sum()>4000):#dont see side
 			self.set_state(self.S_STRAFE_BALL)
 			return
 		if self.count_i == 0:
-			pxs	= self.fragmented[240:]
+			pxs	= self.fragmented[240:425]
 			self.strafe_right = 1 if ((pxs[:,:-50]==5)*(pxs[:,50:]==6)).sum() < ((pxs[:,:-50]==6)*(pxs[:,50:]==5)).sum() else -1
-		self.motors.move(min(40, self.fps), np.pi/2 * self.strafe_right, gate[1] * 150)
+		self.motors.move(min(40, self.fps), np.pi/2 * self.strafe_right, gate[1] * self.fps * 2)
 		self.motors.update()
 		
 	def f_strafe_ball(self):
+		gate	= self.gates[self.gate]
+		if gate is None:#gate lost, find gate
+			self.set_state(self.S_FIND_GATE)
+			return
 		ys, xs = np.mgrid[:480,:640]
 		gate	= self.gates[self.gate]
 		ylim	= gate[6]+gate[3]
 		if gate[0] < 200:
 			ylim = gate[6]+gate[3]//2+((self.fragmented[gate[6]+gate[3]//2:,318:323]==5).sum(1)>2).argmax()
-		mask = (self.fragmented==1)*(np.abs(xs-320) < 5 + ys * 0.162)*(ys>ylim)
+		mask = (self.fragmented==1)*(np.abs(xs-320) < self.W_b + ys * self.W_a)*(ys>ylim)
 		msum	= mask.sum()
-		if msum < 10:
+		if self.count_i == 0:
+			self.strafe_right = 1 if (((xs < 320)*mask).sum() > msum/2) else -1
+			self.count_j	= 0
+		if msum < 10 and self.count_j > 15:
 			self.set_state(self.S_KICK)
 			return
 		if self.count_i > 180:
 			self.set_state(self.S_KICK)
 			return
-		if self.count_i == 0:
-			self.strafe_right = 1 if (((xs < 320)*mask).sum() > msum/2) else -1
-		self.motors.move(min(40, self.fps), np.pi/2 * self.strafe_right, gate[1] * 150)
+		if msum < 10:
+			self.motors.move(0, 0, min(5, abs(gate[1]) * 100) * (1 if gate[1] > 0 else -1))
+		else:
+			self.motors.move(min(40, self.fps), np.pi/2 * self.strafe_right, gate[1] * self.fps * 2)
 		self.motors.update()
+		self.count_j += 60.0 / self.fps
 		
 	def f_stalled(self):
 		if self.count_i == 0:
@@ -437,6 +444,8 @@ class Logic(_cam.Cam):
 				timeb	= time.time()
 				self.fps	= 60 / (timeb - timea)
 				timea	= timeb
+			if i % 12 == 1:
+				self.UI_screen()
 				
 			#self.profile -= 1
 			#if self.profile < 0:

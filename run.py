@@ -12,8 +12,10 @@ use_UI	= True
 motors = _motors.Motors()
 logic = _logic.Logic(motors)
 
-logic.start()
 motors.start()
+while motors.opened_status == '?':
+	time.sleep(0.1)
+logic.start()
 
 if use_UI:
 	import _UI

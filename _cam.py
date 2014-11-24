@@ -31,17 +31,16 @@ class Cam(threading.Thread):
 			segment.set_table(self.colors_lookup)
 		self.CAM_D_ANGLE	= 60 * np.pi / 180 / 640
 		with open('distances.pkl', 'rb') as fh:
-			self.CAM_HEIGHT, self.CAM_DISTANCE, self.CAM_ANGLE, self.Y_FAR = pickle.load(fh)
+			self.CAM_HEIGHT, self.CAM_DISTANCE, self.CAM_ANGLE, self.Y_FAR, self.W_a, self.W_b = pickle.load(fh)
 		self.H_BALL	= 2.15#half height
 		self.H_GATE	= 10
 		self.fragmented	= np.zeros((480,640), dtype=np.uint8)
 		self.t_ball = np.zeros((480,640), dtype=np.uint8)
 		self.t_gatey = np.zeros((480,640), dtype=np.uint8)
 		self.t_gateb	= np.zeros((480,640), dtype=np.uint8)
-		self.t_debug	= np.zeros((480,640), dtype=np.uint8)
+		self.t_debug	= np.zeros((480,640,3), dtype=np.uint8)
 		self.debugi	= 0
 		self.ball_history	= deque([], maxlen=60)
-		self.cam_locked	= False
 		self.gate	= 0
 		
 	def open(self):
@@ -126,7 +125,7 @@ class Cam(threading.Thread):
 			if s < 500:
 				continue
 			x, y, w, h = cv2.boundingRect(contour)
-			if (h < 18 and y > 2) or (h < 6 and w < 50):
+			if (h < 18 and y > 2) or (h < 6 and w < 20):
 				continue
 			r, alpha	= self.calc_location(x + w / 2, y + h / 2, self.H_GATE)
 			if s > s_max:
@@ -136,14 +135,25 @@ class Cam(threading.Thread):
 		
 	def analyze_frame(self):
 		#try:
-			self.cam_locked	= True
 			_, img = self.cam.read()
-			#self.t_debug = img
 			segment.segment(img, self.fragmented, self.t_ball, self.t_gatey, self.t_gateb)
-			self.cam_locked	= False
 			self.analyze_balls(self.t_ball)
 			self.analyze_gate((self.t_gatey if self.gate == 0 else self.t_gateb), self.gate)
 			if self.gates[self.gate] is None:
 				self.analyze_gate((self.t_gateb if self.gate == 0 else self.t_gatey), 1 - self.gate)
 		#except:
 		#	print('cam: except')
+
+	def UI_screen(self):
+		self.t_debug	= np.zeros((480,640,3), dtype=np.uint8)
+		self.t_debug[self.t_ball > 0] = [0, 0, 255]#balls are shown as red
+		self.t_debug[self.t_gatey > 0] = [0, 255, 255]#yellow gate is yellow
+		self.t_debug[self.fragmented == 4] = [0, 255, 0]#green
+		self.t_debug[self.fragmented == 5] = [255, 255, 255]#white
+		self.t_debug[self.fragmented == 6] = [255, 255, 0]#dark
+		self.t_debug[self.t_gateb > 0] = [255, 0, 0]#blue gate
+		self.t_debug[:,320]	= [0,0,0]
+		tmp_f	= self.largest_ball
+		if tmp_f is not None:
+			self.t_debug[tmp_f[3] + tmp_f[5] // 2,:] = [0, 0, 255]#locked ball horizontal
+			self.t_debug[:,tmp_f[2] + tmp_f[4] // 2] = [0, 0, 255]#locked ball vertical

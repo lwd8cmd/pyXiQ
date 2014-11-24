@@ -62,7 +62,7 @@ class UI(object):
 						running = False
 						break
 					if event.key == pygame.K_c:
-						self.logic.motors.coil_kick()
+						self.logic.motors.coil_kick(1000)
 					elif event.key == pygame.K_t:
 						self.logic.motors.coil_write('m')
 					elif event.key == pygame.K_SPACE:#SPACE==stop
@@ -81,7 +81,7 @@ class UI(object):
 							if item == event.key:
 								if self.logic.state is not S_MANUAL:
 									self.logic.set_state(S_MANUAL)
-								speed		= 3
+								speed		= 1
 								direction	= -np.pi/2 + index * np.pi/4#self.logic.motors.DEG120
 								omega		= 0
 								no_key 		= 0
@@ -148,30 +148,7 @@ class UI(object):
 			pygame.display.flip()
 				
 			#show camera feed
-			frame	= np.zeros((480,640,3))
-			if True:
-				while self.logic.cam_locked:
-					time.sleep(0.001)
-				frame[self.logic.t_ball > 0] = [0, 0, 255]#balls are shown as red
-				frame[self.logic.t_gatey > 0] = [0, 255, 255]#yellow gate is yellow
-				frame[self.logic.fragmented == 4] = [0, 255, 0]#green
-				frame[self.logic.fragmented == 5] = [255, 255, 255]#white
-				frame[self.logic.fragmented == 6] = [255, 255, 0]#dark
-				frame[self.logic.t_gateb > 0] = [255, 0, 0]#blue gate
-				frame[self.logic.t_debug > 0] = [0,0,0]
-				frame[:,320]	= [0,0,0]
-				tmp_f	= self.logic.largest_ball
-				if tmp_f is not None:
-					frame[tmp_f[3] + tmp_f[5] // 2,:] = [0, 0, 255]#locked ball horizontal
-					frame[:,tmp_f[2] + tmp_f[4] // 2] = [0, 0, 255]#locked ball vertical
-					#x	= tmp_f[2] + tmp_f[4] // 2
-					#y	= tmp_f[3] + tmp_f[5]
-					#frame[max(0,y-30):min(480,y+30),max(0,x-40):min(640,x+40)] = [255, 0, 255]
-			else:
-				frame	= self.logic.t_debug
-				#frame[self.logic.t_ball > 0] = [0, 0, 255]
-				#frame[self.logic.t_debug > 0] = [0, 255, 255]
-			cv2.imshow('frame', frame)
+			cv2.imshow('frame', self.logic.t_debug)
 			
 			#wait w/ openCV, pygame
 			if cv2.waitKey(1) & 0xFF == pygame.K_ESCAPE:
