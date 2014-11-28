@@ -12,10 +12,10 @@ class Logic(_cam.Cam):
 		super(Logic, self).__init__()
 		self.motors	= motors
 		self.state	= 0
-		self.S_MANUAL, self.S_FIND_BALL, self.S_WAIT, self.S_STRAFE_BALL, self.S_YLARI, self.S_TURN, self.S_FOLLOW_BALL, self.S_FOLLOW_BALL_BLIND,\
+		self.S_MANUAL, self.S_FIND_BALL, self.S_WAIT, self.S_FIND_GATE_FAR, self.S_TURN_KICKED, self.S_STRAFE_BALL, self.S_YLARI, self.S_TURN, self.S_FOLLOW_BALL, self.S_FOLLOW_BALL_BLIND,\
 			self.S_FIND_GATE, self.S_AIM, self.S_KICK, self.S_BACK_GATE, \
-			self.S_FIND_GATE_FAR, self.S_FIND_LOST_BALL, self.S_FOLLOW_GATE_FAR, self.S_STRAFE, self.S_STALLED, self.S_STALLEDB \
-			= range(18)
+			self.S_FIND_LOST_BALL, self.S_FOLLOW_GATE_FAR, self.S_STRAFE, self.S_STALLED, self.S_STALLEDB \
+			= range(19)
 		self.state_names	= {
 			self.S_MANUAL : 'manuaalne',
 			self.S_STALLED : 'stalled',
@@ -34,7 +34,8 @@ class Logic(_cam.Cam):
 			self.S_WAIT : 'oota',
 			self.S_YLARI : 'ylari',
 			self.S_BACK_GATE : 'tagurda varavast',
-			self.S_STRAFE_BALL : 'streifi palliga'
+			self.S_STRAFE_BALL : 'streifi palliga',
+			self.S_TURN_KICKED : 'poora palli eest'
 		}
 		self.last_state = 0
 		self.robot_x	= 0#max 460cm
@@ -53,7 +54,8 @@ class Logic(_cam.Cam):
 		self.ball_in_white	= False
 		self.find_ball_i	= 0
 		self.turn_ball_i	= 0
-		self.strafe_right	= 1
+		self.go_right	= 1
+		self.closest_ball	= 999
 		
 	def r_history_clear(self):
 		for i in range(5):
@@ -72,20 +74,13 @@ class Logic(_cam.Cam):
 			
 		gate	= self.gates[self.gate]		
 		if False and gate is not None:
-			ys, xs = np.mgrid[:480,:640]
-			ylim	= gate[6]+gate[3]
-			if gate[0] < 200:
-				ylim = gate[6]+gate[3]//2+((self.fragmented[gate[6]+gate[3]//2:,318:323]==5).sum(1)>2).argmax()
-			mask = (np.abs(xs-320) < 5 + ys * 0.162)*(ys>ylim)
-			print(((self.fragmented==1)*mask).sum())
-			self.t_debug = mask
-			#print(self.t_ball[gate[6]+gate[3]:,318:323].sum())
+			print(gate)
 		
 		if False and self.largest_ball is not None:#ball is lost, find ball
 			r = self.largest_ball[0]
 			alpha	= self.largest_ball[1]
 			#self.angle_history.append(alpha)
-			print(self.largest_ball)
+			print(self.largest_ball[2],self.largest_ball[3])
 			
 		if False and self.largest_ball is not None:
 			x	= self.largest_ball[2] + self.largest_ball[4] // 2
@@ -123,14 +118,14 @@ class Logic(_cam.Cam):
 			self.set_state(self.S_FOLLOW_BALL)
 			return
 		if self.count_i > 20:#timeout, find_ball
+			print('TO: lost_ball')
 			self.set_state(self.S_FIND_BALL)
 			return
 			
 	def f_turn(self):#turn to see smth else
-		if self.count_i == 0:
-			self.motors.move(0, 0, min(60, self.count_i*2+30))
-			self.motors.update()
-		if self.count_i > 25:#timeout, wait
+		self.motors.move(0, 0, min(60, self.count_i*2+30))
+		self.motors.update()
+		if self.count_i > 48:#timeout, wait (120deg)
 			self.set_state(self.S_FIND_BALL)
 		
 	def f_find_ball(self):#turn until see ball
@@ -160,18 +155,22 @@ class Logic(_cam.Cam):
 			self.r_history_clear()
 		if self.count_i > 20:
 			self.find_ball_i = 0
-			
 		r = self.largest_ball[0]
 		alpha	= self.largest_ball[1]
 		self.r_history_add(r)
 		if np.array(self.r_history).std() < 4:#stuck, ball not coming closer
-			print('logic follow ball timeout')
+			print('TO: follow_ball')
 			self.set_state(self.S_TURN)
 			return
-		turn_spd	= min(self.fps, alpha * 4000.0 / min(50, r))
-		spd	= min(210 - abs(turn_spd),r*self.fps/30+10, self.count_i * 6 + 60)
-		turn_spd -= spd * 0.08
-		spd	= min(spd, 210 - abs(turn_spd))
+		#turn_spd	= min(self.fps, alpha * 4000.0 / min(50, r))
+		#spd	= min(190, r*self.fps/30+10, self.count_i * 3 + 60)
+		#turn_spd	= min(self.fps, alpha * max(spd * 2, 100))
+		#spd	= min(spd, 190 - turn_spd)
+		#turn_spd -= (spd - 50) * 0.18
+		#spd	= min(spd, 190 - abs(turn_spd))
+		spd	= min(190, r*self.fps/30+10, self.count_i * 2.4 + 60)
+		turn_spd	= min(self.fps, alpha * 100)
+		spd	= min(spd, 190 - abs(turn_spd))
 		self.motors.move(spd, alpha, turn_spd)
 		self.motors.update()
 		if r < 19:#ball is going to the blind area, follow blind
@@ -193,13 +192,15 @@ class Logic(_cam.Cam):
 			self.set_state(self.S_FIND_GATE)
 			return
 		if self.largest_ball is not None and self.largest_ball[6] > 10000:
+			self.count_i = 0
 			r = self.largest_ball[0]
 			alpha	= self.largest_ball[1]
-			turn_spd	= min(self.fps, alpha * 4000.0 / r)
+			turn_spd	= min(self.fps / 2, alpha * 4000.0 / r)
 			spd	= r*1.3+10
 			self.motors.move(spd, alpha, turn_spd)
 			self.motors.update()
 		if self.count_i > 20:
+			print('TO: follow_ball_blind')
 			if self.ball_blind_i > 2:
 				self.set_state(self.S_TURN)
 				return
@@ -219,7 +220,8 @@ class Logic(_cam.Cam):
 				self.ball_in_white = False
 				self.set_state(self.S_BACK_GATE)
 				return
-		spd	= min(40, self.fps, self.count_i*2) * (1 if self.gates_last[self.gate][1] > 0 else -1)
+			self.go_right = 1 if self.robot_dir < 0 else -1
+		spd	= min(40, self.fps, self.count_i*2) * self.go_right
 		if self.ball_in_white: 
 			self.motors.move(spd, -np.pi/2, spd)
 		else:
@@ -239,7 +241,7 @@ class Logic(_cam.Cam):
 		if np.abs(gate[1])*3000.0 < gate[2]:#gate in the center
 			self.set_state(self.S_STRAFE)
 			return
-		spd	= max(15,min(40, self.fps, (self.count_i + self.turn_ball_i)*2, abs(gate[1] * 100))) * (1 if gate[1] > 0 else -1)
+		spd	= max(10,min(40, self.fps, (self.count_i + self.turn_ball_i)*2, abs(gate[1] * 100))) * (1 if gate[1] > 0 else -1)
 		if self.ball_in_white:
 			self.motors.move(spd, -np.pi/2, spd)
 		else:
@@ -255,13 +257,30 @@ class Logic(_cam.Cam):
 			if gate is None:#gate lost, find gate
 				self.set_state(self.S_FIND_GATE)
 				return
-			self.motors.coil_kick(min(1000,gate[0]*2+400))
+			self.closest_ball = 999
+			for ball in self.frame_balls:
+				if ball[0] < self.closest_ball:
+					self.closest_ball = ball[0]
+			self.motors.coil_kick(min(1000,gate[0]*2+400))#300
 			self.motors.coil_write('ts')
 			self.motors.move(0, 0, 0)
 			self.motors.update()
-		if self.count_i > 10:
-			self.set_state(self.S_TURN)
-			return
+		if self.count_i > 15:
+			gate	= self.gates[self.gate]
+			print(gate)
+			if gate is not None and gate[0] < 50:#gate too close, turn
+				self.set_state(self.S_TURN)
+				return
+			if self.closest_ball == 999:#no balls in front
+				self.set_state(self.S_TURN_KICKED)
+				return
+			self.set_state(self.S_FIND_BALL)
+			
+	def f_turn_kicked(self):
+		self.motors.move(0, 0, min(60, self.count_i*2+30))
+		self.motors.update()
+		if self.count_i > 18:#timeout, wait (120deg)
+			self.set_state(self.S_FIND_BALL)
 			
 	def f_find_gate_far(self):
 		if self.motors.has_ball and self.has_ball_enabled:
@@ -294,12 +313,15 @@ class Logic(_cam.Cam):
 		r	= gate[0]
 		self.r_history_add(r)
 		if np.array(self.r_history).std() < 5:
-			print('logic follow gate timeout')
+			print('TO: follow_gate_far')
 			self.set_state(self.S_TURN)
 			return
 		if r > 100:#follow
-			alp = gate[1]*50
-			self.motors.move(min(210 - abs(alp), (r - 50)*1.3, self.count_i*2 + 20), gate[1], alp)
+			turn_spd = gate[1]*50
+			spd	= min(200 - abs(turn_spd), (r - 50)*1.3, self.count_i*2 + 20)
+			turn_spd -= spd * 0.06
+			spd	= min(spd, 210 - abs(turn_spd))
+			self.motors.move(spd, gate[1], turn_spd)
 			self.motors.update()
 		else:#find ball
 			self.set_state(self.S_FIND_BALL)
@@ -320,6 +342,7 @@ class Logic(_cam.Cam):
 			self.set_state(self.S_FIND_GATE)
 			return
 		if self.count_i > 180:
+			print('TO: strafe')
 			self.set_state(self.S_KICK)
 			return
 		if not (gate[2]*gate[3]/gate[4] > 3.0 or (self.fragmented[gate[6]+gate[3]:425,320-20:320+20]==6).sum()>4000):#dont see side
@@ -327,8 +350,8 @@ class Logic(_cam.Cam):
 			return
 		if self.count_i == 0:
 			pxs	= self.fragmented[240:425]
-			self.strafe_right = 1 if ((pxs[:,:-50]==5)*(pxs[:,50:]==6)).sum() < ((pxs[:,:-50]==6)*(pxs[:,50:]==5)).sum() else -1
-		self.motors.move(min(40, self.fps), np.pi/2 * self.strafe_right, gate[1] * self.fps * 2)
+			self.go_right = 1 if ((pxs[:,:-50]==5)*(pxs[:,50:]==6)).sum() < ((pxs[:,:-50]==6)*(pxs[:,50:]==5)).sum() else -1
+		self.motors.move(min(40, self.fps), np.pi/2 * self.go_right, gate[1] * self.fps * 2)
 		self.motors.update()
 		
 	def f_strafe_ball(self):
@@ -341,23 +364,26 @@ class Logic(_cam.Cam):
 		ylim	= gate[6]+gate[3]
 		if gate[0] < 200:
 			ylim = gate[6]+gate[3]//2+((self.fragmented[gate[6]+gate[3]//2:,318:323]==5).sum(1)>2).argmax()
-		mask = (self.fragmented==1)*(np.abs(xs-320) < self.W_b + ys * self.W_a)*(ys>ylim)
+		#mask = (self.fragmented==1)*(np.abs(xs-320) < self.W_b + ys * self.W_a)*(ys>max(80,ylim))
+		mask	= (self.fragmented==1)*self.ball_way*(ys>max(80,ylim))
 		msum	= mask.sum()
 		if self.count_i == 0:
-			self.strafe_right = 1 if (((xs < 320)*mask).sum() > msum/2) else -1
+			self.go_right = 1 if (((xs < self.X_b + ys * self.X_a)*mask).sum() > msum/2) else -1
 			self.count_j	= 0
-		if msum < 10 and self.count_j > 15:
+		if msum < 5 and self.count_j > 10:
 			self.set_state(self.S_KICK)
 			return
 		if self.count_i > 180:
+			print('TO: strafe_ball')
 			self.set_state(self.S_KICK)
 			return
-		if msum < 10:
-			self.motors.move(0, 0, min(5, abs(gate[1]) * 100) * (1 if gate[1] > 0 else -1))
+		if msum < 5:
+			self.motors.move(0, 0, max(15, min(self.fps, abs(gate[1]) * 100)) * (1 if gate[1] > 0 else -1))
+			if np.abs(gate[1])*3000.0 < gate[2]:#gate in the center
+				self.count_j += 60.0 / self.fps
 		else:
-			self.motors.move(min(40, self.fps), np.pi/2 * self.strafe_right, gate[1] * self.fps * 2)
+			self.motors.move(min(40, self.fps), np.pi/2 * self.go_right, gate[1] * self.fps * 2)
 		self.motors.update()
-		self.count_j += 60.0 / self.fps
 		
 	def f_stalled(self):
 		if self.count_i == 0:
@@ -365,6 +391,7 @@ class Logic(_cam.Cam):
 			self.motors.read_buffer(1)
 			if not self.motors.button:
 				self.gate = 1 - self.gate
+				print('logic: change gate ' + ('yellow' if self.gate == 0 else 'blue'))
 				self.set_state(self.S_WAIT)
 				return
 			print('stalled')
@@ -387,9 +414,25 @@ class Logic(_cam.Cam):
 		self.options[state]()
 		
 	def update_position(self):
-		self.robot_x	+= self.motors.speed/64.0*np.cos(self.motors.direction+self.robot_dir)
-		self.robot_y	+= self.motors.speed/64.0*np.sin(self.motors.direction+self.robot_dir)
-		self.robot_dir	+= self.motors.angular_velocity/783.0
+		gatea	= self.gates[self.gate]
+		gateb	= self.gates[1 - self.gate]
+		if gatea is not None:
+			self.robot_x	= max(0, 460 - gatea[0])
+			self.robot_dir = -gatea[1]
+		elif gateb is not None:
+			self.robot_x	= min(460, gateb[0])
+			if gateb[1] > 0:
+				self.robot_dir = np.pi - gateb[1]
+			else:
+				self.robot_dir = -np.pi - gateb[1]
+		else:
+			#self.robot_x	+= self.motors.speed/64.0*np.cos(self.motors.direction+self.robot_dir)
+			#self.robot_y	+= self.motors.speed/64.0*np.sin(self.motors.direction+self.robot_dir)
+			self.robot_dir	+= self.motors.angular_velocity/750.0
+			if self.robot_dir > np.pi:
+				self.robot_dir -= np.pi
+			elif self.robot_dir < -2*np.pi:
+				self.robot_dir += 2*np.pi
 	
 	def run(self):
 		if self.open():
@@ -418,7 +461,8 @@ class Logic(_cam.Cam):
 			self.S_WAIT : self.f_wait,
 			self.S_YLARI : self.f_ylari,
 			self.S_BACK_GATE : self.f_back_gate,
-			self.S_STRAFE_BALL : self.f_strafe_ball
+			self.S_STRAFE_BALL : self.f_strafe_ball,
+			self.S_TURN_KICKED : self.f_turn_kicked
 		}
 		i	= 0
 		timea	= time.time()
@@ -428,22 +472,23 @@ class Logic(_cam.Cam):
 			if self.state is not self.S_WAIT:
 				self.analyze_frame()
 			else:
-				time.sleep(0.2)
+				self.cam_warm()
 			if True in self.motors.stalled and self.state is not self.S_STALLED and self.state is not self.S_WAIT:
 				self.set_state(self.S_STALLED)
 			else:
 				self.options[self.state]()
-			#self.update_position()
+			self.update_position()
 			
 			self.count_i += 60.0 / self.fps
 				
 			#fps counter
 			i += 1
-			if i % 60 == 0:
+			if i % 30 == 0:
 				i = 0
 				timeb	= time.time()
-				self.fps	= 60 / (timeb - timea)
+				self.fps	= 30 / (timeb - timea)
 				timea	= timeb
+				#print(self.fps)
 			if i % 12 == 1:
 				self.UI_screen()
 				

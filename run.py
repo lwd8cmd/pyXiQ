@@ -15,6 +15,7 @@ logic = _logic.Logic(motors)
 motors.start()
 while motors.opened_status == '?':
 	time.sleep(0.1)
+time.sleep(1)
 logic.start()
 
 if use_UI:

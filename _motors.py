@@ -141,6 +141,7 @@ class Motors(threading.Thread):
 				try:
 					char	= self.motors[i].read(1)
 					if char == '\n':
+						#print(self.buffers[i])
 						if i == 1 and self.buffers[i][:3] == '<b:':
 							self.button = (self.buffers[i][3:4] == '1')
 						if i == 0 and self.buffers[i][:3] == '<p:':

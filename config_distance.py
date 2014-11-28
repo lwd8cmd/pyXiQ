@@ -9,6 +9,7 @@ with open('colors/colors.pkl', 'rb') as fh:
 	colors_lookup = pickle.load(fh)
 ys	= []
 ws	= []
+xs	= []
 i	= 0
 tmp = 14
 distances	= np.linspace(30, 280, 5)
@@ -50,9 +51,10 @@ while(True):
 	if k == ord('q'):
 		break
 	elif k == ord('o') and y is not None:
-		print(y)
+		print(y, x, w)
 		ys.append(y)
 		ws.append(w)
+		xs.append(x)
 		i += 1
 		if i == len(distances):
 			ymax = y
@@ -61,9 +63,10 @@ while(True):
 		
 if len(ys) == len(distances):
 	ys	= np.array(ys)
+	xs	= np.array(xs)
 	ws	= np.array(ws)
 	
-	print(ys, ws, distances)
+	print(ys, xs, ws, distances)
 	
 	d_angle	= 60 * np.pi / 180 / 640
 	h_ball	= 2.15
@@ -75,16 +78,18 @@ if len(ys) == len(distances):
 		return a*y+b
 		
 	p	= curve_fit(calc_distance, ys, distances, p0=[15, 8, 1.63])[0]
+	px	= curve_fit(calc_w, ys, xs, p0=[0, 0])[0]
 	pw	= curve_fit(calc_w, ys, ws, p0=[0.162, 3.0])[0]
 	
 	print('params:', p)
 	print('distance, calculated:')
 	for i in range(len(distances)):
 		print(distances[i], calc_distance(ys[i], p[0], p[1], p[2]))
-	print(pw)
+	print('px', px)
+	print('pw', pw)
 	
 	# When everything done, release the capture
 	with open('distances.pkl', 'wb') as fh:
-		pickle.dump([p[0], p[1], p[2], ymax, pw[0], pw[1]+2], fh, -1)
+		pickle.dump([p[0], p[1], p[2], ymax, px[0], px[1], pw[0], pw[1]], fh, -1)
 cap.release()
 cv2.destroyAllWindows()

@@ -31,7 +31,7 @@ class Cam(threading.Thread):
 			segment.set_table(self.colors_lookup)
 		self.CAM_D_ANGLE	= 60 * np.pi / 180 / 640
 		with open('distances.pkl', 'rb') as fh:
-			self.CAM_HEIGHT, self.CAM_DISTANCE, self.CAM_ANGLE, self.Y_FAR, self.W_a, self.W_b = pickle.load(fh)
+			self.CAM_HEIGHT, self.CAM_DISTANCE, self.CAM_ANGLE, self.Y_FAR, self.X_a, self.X_b, self.W_a, self.W_b = pickle.load(fh)
 		self.H_BALL	= 2.15#half height
 		self.H_GATE	= 10
 		self.fragmented	= np.zeros((480,640), dtype=np.uint8)
@@ -42,6 +42,12 @@ class Cam(threading.Thread):
 		self.debugi	= 0
 		self.ball_history	= deque([], maxlen=60)
 		self.gate	= 0
+		self.t_debug_locked	= False
+		self.angle_fix	= 0
+		ys, xs = np.mgrid[:480,:640]
+		self.ball_way = np.abs(xs - self.X_b - ys * self.X_a) < self.W_b + 4 + ys * self.W_a
+		self.yarr	= np.arange(480)
+		self.xmid	= np.round(self.yarr * self.X_a + self.X_b).astype('uint16')
 		
 	def open(self):
 		self.cam = cv2.VideoCapture(0)
@@ -63,9 +69,11 @@ class Cam(threading.Thread):
 		except:
 			print('cam: close err')
 		
-	def calc_location(self, x, y, h):
+	def calc_location(self, x, y, h, corred):
 		d	= (self.CAM_HEIGHT - h) * np.tan(self.CAM_ANGLE - self.CAM_D_ANGLE * y) - self.CAM_DISTANCE
-		alpha	= self.CAM_D_ANGLE * (x - 320)+0.063#+0.04# + 0.04#0.0082
+		tmpa	= 340
+		x0	= (self.X_b - y * self.X_a) if corred else (tmpa + (300-tmpa)/480.0 * y)
+		alpha	= self.CAM_D_ANGLE * (x - x0)+self.angle_fix
 		r	= d / np.cos(alpha)
 		return (r, alpha)
 			
@@ -92,7 +100,7 @@ class Cam(threading.Thread):
 				#print('ratio', ratio)
 				continue
 			ys	= np.repeat(np.arange(y + h, 480), 5)
-			xs	= np.linspace(x + w / 2, 320, num=len(ys)/5).astype('uint16')
+			xs	= np.linspace(x + w / 2, self.X_b + 480 * self.X_a, num=len(ys)/5).astype('uint16')
 			xs	= np.repeat(xs, 5)
 			xs[::5] -= 2
 			xs[1::5] -= 1
@@ -104,9 +112,9 @@ class Cam(threading.Thread):
 				#print('black', black_pixs)
 				continue
 			if s > 10000:
-				coords	= self.calc_location(x + w / 2, y, 2*self.H_BALL)
+				coords	= self.calc_location(x + w / 2, y, 2*self.H_BALL, False)
 			else:
-				coords	= self.calc_location(x + w / 2, y + h / 2, self.H_BALL)
+				coords	= self.calc_location(x + w / 2, y + h / 2, self.H_BALL, False)
 			if coords[0] > 300:
 				#print('far', coords[0])
 				continue
@@ -127,7 +135,7 @@ class Cam(threading.Thread):
 			x, y, w, h = cv2.boundingRect(contour)
 			if (h < 18 and y > 2) or (h < 6 and w < 20):
 				continue
-			r, alpha	= self.calc_location(x + w / 2, y + h / 2, self.H_GATE)
+			r, alpha	= self.calc_location(x + w / 2, y + h / 2, self.H_GATE, True)
 			if s > s_max:
 				s_max	= s
 				self.gates[gate_nr]	= [r, alpha, w, h, s, x, y]
@@ -143,8 +151,12 @@ class Cam(threading.Thread):
 				self.analyze_gate((self.t_gateb if self.gate == 0 else self.t_gatey), 1 - self.gate)
 		#except:
 		#	print('cam: except')
+		
+	def cam_warm(self):
+		_, img = self.cam.read()
 
 	def UI_screen(self):
+		self.t_debug_locked	= True
 		self.t_debug	= np.zeros((480,640,3), dtype=np.uint8)
 		self.t_debug[self.t_ball > 0] = [0, 0, 255]#balls are shown as red
 		self.t_debug[self.t_gatey > 0] = [0, 255, 255]#yellow gate is yellow
@@ -152,8 +164,10 @@ class Cam(threading.Thread):
 		self.t_debug[self.fragmented == 5] = [255, 255, 255]#white
 		self.t_debug[self.fragmented == 6] = [255, 255, 0]#dark
 		self.t_debug[self.t_gateb > 0] = [255, 0, 0]#blue gate
-		self.t_debug[:,320]	= [0,0,0]
 		tmp_f	= self.largest_ball
 		if tmp_f is not None:
 			self.t_debug[tmp_f[3] + tmp_f[5] // 2,:] = [0, 0, 255]#locked ball horizontal
 			self.t_debug[:,tmp_f[2] + tmp_f[4] // 2] = [0, 0, 255]#locked ball vertical
+		self.t_debug[self.yarr, self.xmid]	= [255, 0, 255]
+		#self.t_debug[self.ball_way]	= [255,255,255]
+		self.t_debug_locked	= False

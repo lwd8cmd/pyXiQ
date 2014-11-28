@@ -140,14 +140,16 @@ class UI(object):
 			
 			#draw balls
 			for ball in self.logic.frame_balls:
-				ball_x	= robot_x + ball[0] * np.cos(ball[1])*185*2/460
-				ball_y	= robot_y + ball[0] * np.sin(ball[1])*185*2/460
+				ball_x	= robot_x + ball[0] * np.cos(ball[1]+robot_angle)*185*2/460
+				ball_y	= robot_y + ball[0] * np.sin(ball[1]+robot_angle)*185*2/460
 				pygame.draw.rect(self.screen, self.RED, (ball_x-1,ball_y-1,3,3), 0)
 			
 			#update pygame screen
 			pygame.display.flip()
 				
 			#show camera feed
+			while self.logic.t_debug_locked:
+				time.sleep(0.001)
 			cv2.imshow('frame', self.logic.t_debug)
 			
 			#wait w/ openCV, pygame

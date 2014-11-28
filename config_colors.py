@@ -107,7 +107,7 @@ while(True):
 		print('everything else')
 		p = 0
 	elif k == ord('s'):
-		with open('colors.pkl', 'wb') as fh:
+		with open('colors/colors.pkl', 'wb') as fh:
 			pickle.dump(colors_lookup, fh, -1)
 		print('saved')
 	elif k == ord('e'):
