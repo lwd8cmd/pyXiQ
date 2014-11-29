@@ -107,7 +107,7 @@ class Cam(threading.Thread):
 			xs[3::5] += 1
 			xs[4::5] += 2
 			pxs	= self.fragmented[ys, xs]
-			black_pixs	= sum([((pxs[:-i]==6)*(pxs[i:]==5)).sum() for i in xrange(15,20)])
+			black_pixs	= sum([((pxs[:-i]==6)*(pxs[i:]==5)).sum() for i in [15,16,17,18,19,22,25,28,31]])
 			if black_pixs > 10:
 				#print('black', black_pixs)
 				continue
@@ -138,7 +138,7 @@ class Cam(threading.Thread):
 			r, alpha	= self.calc_location(x + w / 2, y + h / 2, self.H_GATE, True)
 			if s > s_max:
 				s_max	= s
-				self.gates[gate_nr]	= [r, alpha, w, h, s, x, y]
+				self.gates[gate_nr]	= [r, alpha, w, h, x, y, s]
 				self.gates_last[gate_nr]	= [r, alpha]
 		
 	def analyze_frame(self):
@@ -170,4 +170,10 @@ class Cam(threading.Thread):
 			self.t_debug[:,tmp_f[2] + tmp_f[4] // 2] = [0, 0, 255]#locked ball vertical
 		self.t_debug[self.yarr, self.xmid]	= [255, 0, 255]
 		#self.t_debug[self.ball_way]	= [255,255,255]
+		gate	= self.gates[0]
+		if False and gate is not None:#[r, alpha, w, h, x, y, s]
+			self.t_debug[gate[5],gate[4]:gate[4]+gate[2]] = [255, 0, 255]
+			self.t_debug[gate[5]+gate[3],gate[4]:gate[4]+gate[2]] = [255, 0, 255]
+			self.t_debug[gate[5]:gate[5]+gate[3],gate[4]] = [255, 0, 255]
+			self.t_debug[gate[5]:gate[5]+gate[3],gate[4]+gate[2]] = [255, 0, 255]
 		self.t_debug_locked	= False

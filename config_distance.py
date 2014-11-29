@@ -12,7 +12,7 @@ ws	= []
 xs	= []
 i	= 0
 tmp = 14
-distances	= np.linspace(30, 280, 5)
+distances	= np.linspace(30, 200, 5)#30,280,5
 
 print('Press q to QUIT')
 print('Press o when ball is ' + str(distances[i] - tmp) + 'cm from the robot')

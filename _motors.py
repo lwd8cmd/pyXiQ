@@ -32,6 +32,7 @@ class Motors(threading.Thread):
 		self.ball_status	= 0
 		self.button = False
 		self.opened_status = '?'
+		self.tribler_working	= False
 		
 	def open(self, allow_reset = False):
 		try:
@@ -93,7 +94,13 @@ class Motors(threading.Thread):
 			try:
 				self.motors[i].write(comm + '\n')
 			except:
-				print('motors: err write ' + comm)
+				print('motors: err write ' + comm + ' ' + str(i))
+				
+	def tribler(self, enable):
+		if enable is not self.tribler_working:
+			self.coil_write('tg' if enable else 'ts')
+			self.tribler_working = enable
+			print('motors: tribler ' + ('T' if enable else 'F'))
 			
 	def coil_write(self, comm):
 		if self.coil is not None:
@@ -153,7 +160,7 @@ class Motors(threading.Thread):
 					else:
 						self.buffers[i] += char
 				except:
-					print('motors: except')
+					print('motors: except ' + str(i))
 					continue
 		except:
 			print('motors: except')

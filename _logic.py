@@ -55,7 +55,10 @@ class Logic(_cam.Cam):
 		self.find_ball_i	= 0
 		self.turn_ball_i	= 0
 		self.go_right	= 1
+		self.turn_right	= 1
 		self.closest_ball	= 999
+		self.hasnt_seen_ball	= 0
+		self.already_turning	= False
 		
 	def r_history_clear(self):
 		for i in range(5):
@@ -70,17 +73,18 @@ class Logic(_cam.Cam):
 		if self.count_i == 0:
 			self.motors.move(0, 0, 0)
 			self.motors.update()
-			self.motors.coil_write('ts')
+			self.motors.tribler(False)
 			
 		gate	= self.gates[self.gate]		
 		if False and gate is not None:
-			print(gate)
+			#>3.0, >4000##>2000
+			print(gate[2]*gate[3]/gate[6],  (self.fragmented[gate[5]+gate[3]:425,320-20:320+20]==6).sum())
 		
 		if False and self.largest_ball is not None:#ball is lost, find ball
 			r = self.largest_ball[0]
 			alpha	= self.largest_ball[1]
 			#self.angle_history.append(alpha)
-			print(self.largest_ball[2],self.largest_ball[3])
+			print(self.largest_ball)
 			
 		if False and self.largest_ball is not None:
 			x	= self.largest_ball[2] + self.largest_ball[4] // 2
@@ -103,7 +107,7 @@ class Logic(_cam.Cam):
 			self.motors.move(0, 0, 0)
 			self.motors.update()
 			self.motors.button = False
-			self.motors.coil_write('ts')
+			self.motors.tribler(False)
 			self.motors.coil_write('k10')
 		self.motors.motor_write(1, 'gb')
 		self.motors.read_buffer(1)
@@ -141,7 +145,10 @@ class Logic(_cam.Cam):
 			return
 		if self.count_i == 0:
 			self.count_i	= self.find_ball_i
-		self.motors.move(0, 0, min(50, self.fps, self.count_i*2))
+			if self.already_turning:
+				self.already_turning	= False
+				self.count_i	= 20
+		self.motors.move(0, 0, min(50, self.fps, self.count_i*2) * self.turn_right)
 		self.motors.update()
 		
 	def f_follow_ball(self):
@@ -162,17 +169,13 @@ class Logic(_cam.Cam):
 			print('TO: follow_ball')
 			self.set_state(self.S_TURN)
 			return
-		#turn_spd	= min(self.fps, alpha * 4000.0 / min(50, r))
-		#spd	= min(190, r*self.fps/30+10, self.count_i * 3 + 60)
-		#turn_spd	= min(self.fps, alpha * max(spd * 2, 100))
-		#spd	= min(spd, 190 - turn_spd)
-		#turn_spd -= (spd - 50) * 0.18
-		#spd	= min(spd, 190 - abs(turn_spd))
 		spd	= min(190, r*self.fps/30+10, self.count_i * 2.4 + 60)
 		turn_spd	= min(self.fps, alpha * 100)
 		spd	= min(spd, 190 - abs(turn_spd))
 		self.motors.move(spd, alpha, turn_spd)
 		self.motors.update()
+		#if r < 30:
+		#	self.motors.tribler(True)
 		if r < 19:#ball is going to the blind area, follow blind
 			self.find_ball_i = 0
 			x	= self.largest_ball[2] + self.largest_ball[4] // 2
@@ -184,7 +187,7 @@ class Logic(_cam.Cam):
 	def f_follow_ball_blind(self):
 		if self.count_i == 0:
 			self.ball_blind_i += 1
-			self.motors.coil_write('tg')
+			self.motors.tribler(True)
 		if self.motors.has_ball and self.has_ball_enabled:
 			self.set_state(self.S_FIND_GATE)
 			return
@@ -210,18 +213,22 @@ class Logic(_cam.Cam):
 		if not self.motors.has_ball and self.has_ball_enabled:#ball is lost
 			self.set_state(self.S_FIND_LOST_BALL)
 			return
+		if self.count_i == 0:
+			self.hasnt_seen_ball = 0
 		if self.gates[self.gate] is not None:#gate found
 			self.turn_ball_i = self.count_i
 			self.set_state(self.S_AIM)
 			return
 		if self.count_i == 0:
-			self.motors.coil_write('tg')
+			self.motors.tribler(True)
 			if self.ball_in_white and self.gates[1-self.gate] is not None and self.gates[1-self.gate][0] < 70:
 				self.ball_in_white = False
 				self.set_state(self.S_BACK_GATE)
 				return
-			self.go_right = 1 if self.robot_dir < 0 else -1
-		spd	= min(40, self.fps, self.count_i*2) * self.go_right
+			self.turn_right = 1 if self.robot_dir < 0 else -1
+		spd	= min(40, self.fps, self.count_i*2) * self.turn_right
+		if self.largest_ball is None:
+			self.hasnt_seen_ball += abs(spd)
 		if self.ball_in_white: 
 			self.motors.move(spd, -np.pi/2, spd)
 		else:
@@ -261,8 +268,8 @@ class Logic(_cam.Cam):
 			for ball in self.frame_balls:
 				if ball[0] < self.closest_ball:
 					self.closest_ball = ball[0]
-			self.motors.coil_kick(min(1000,gate[0]*2+400))#300
-			self.motors.coil_write('ts')
+			self.motors.coil_kick(min(1000,gate[0]*2+300))#300
+			self.motors.tribler(False)
 			self.motors.move(0, 0, 0)
 			self.motors.update()
 		if self.count_i > 15:
@@ -271,15 +278,22 @@ class Logic(_cam.Cam):
 			if gate is not None and gate[0] < 50:#gate too close, turn
 				self.set_state(self.S_TURN)
 				return
+			if self.turn_right == -1 and self.hasnt_seen_ball > 900:#turned left a lot and hasnt seen balls
+				self.turn_right = -1
+			elif self.turn_right == 1 and self.hasnt_seen_ball < 300:#turned right and just saw balls
+				self.turn_right = -1
+			else:#turn right
+				self.turn_right = 1
 			if self.closest_ball == 999:#no balls in front
 				self.set_state(self.S_TURN_KICKED)
 				return
 			self.set_state(self.S_FIND_BALL)
 			
 	def f_turn_kicked(self):
-		self.motors.move(0, 0, min(60, self.count_i*2+30))
+		self.motors.move(0, 0, min(60, self.count_i*2+30) * self.turn_right)
 		self.motors.update()
 		if self.count_i > 18:#timeout, wait (120deg)
+			self.already_turning	= True
 			self.set_state(self.S_FIND_BALL)
 			
 	def f_find_gate_far(self):
@@ -301,7 +315,7 @@ class Logic(_cam.Cam):
 		if self.motors.has_ball and self.has_ball_enabled:
 			self.set_state(self.S_FIND_GATE)
 			return
-		if self.largest_ball is not None:
+		if self.largest_ball is not None and self.largest_ball[6] > 9:
 			self.set_state(self.S_FOLLOW_BALL)
 			return
 		gate	= self.gates[self.gate_far]
@@ -345,7 +359,8 @@ class Logic(_cam.Cam):
 			print('TO: strafe')
 			self.set_state(self.S_KICK)
 			return
-		if not (gate[2]*gate[3]/gate[4] > 3.0 or (self.fragmented[gate[6]+gate[3]:425,320-20:320+20]==6).sum()>4000):#dont see side
+		#if not (gate[2]*gate[3]/gate[6] > 3.0 or (self.fragmented[gate[5]+gate[3]:425,320-20:320+20]==6).sum()>4000):#dont see side
+		if (self.fragmented[gate[5]+gate[3]:425,320-20:320+20]==6).sum()<2000 and gate[2] > gate[3]:
 			self.set_state(self.S_STRAFE_BALL)
 			return
 		if self.count_i == 0:
@@ -361,9 +376,9 @@ class Logic(_cam.Cam):
 			return
 		ys, xs = np.mgrid[:480,:640]
 		gate	= self.gates[self.gate]
-		ylim	= gate[6]+gate[3]
+		ylim	= gate[5]+gate[3]
 		if gate[0] < 200:
-			ylim = gate[6]+gate[3]//2+((self.fragmented[gate[6]+gate[3]//2:,318:323]==5).sum(1)>2).argmax()
+			ylim = gate[5]+gate[3]//2+((self.fragmented[gate[5]+gate[3]//2:,318:323]==5).sum(1)>2).argmax()
 		#mask = (self.fragmented==1)*(np.abs(xs-320) < self.W_b + ys * self.W_a)*(ys>max(80,ylim))
 		mask	= (self.fragmented==1)*self.ball_way*(ys>max(80,ylim))
 		msum	= mask.sum()
