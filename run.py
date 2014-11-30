@@ -8,7 +8,7 @@ import _motors
 import _logic
 
 use_UI	= True
-
+#start threads
 motors = _motors.Motors()
 logic = _logic.Logic(motors)
 
@@ -18,12 +18,12 @@ while motors.opened_status == '?':
 time.sleep(1)
 logic.start()
 
-if use_UI:
+if use_UI:#start UI thread
 	import _UI
 	UI = _UI.UI(logic)
 	UI.run()
 	
-else:
+else:#CLI
 	print('Press Ctrl-c to exit.')
 	logic.gate = 0
 	logic.set_state(logic.S_WAIT)

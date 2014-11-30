@@ -40,31 +40,31 @@ class Motors(threading.Thread):
 		except:
 			print('motors: /dev/ttyACM empty')
 			return False
-		for port in ports:
+		for port in ports:#analyze serial ports
 			id_nr	= -1
 			try:
 				connection_opened = False
 				while not connection_opened:
 					connection = serial.Serial(port, baudrate=115200, timeout=0.8)
 					connection_opened = connection.isOpen()
-				i	= 0
+				i	= 0#try count
 				time.sleep(0.5)
 				connection.flush()
 				while self.run_it:
 					try:
 						i	+= 1
-						if i > 6:
+						if i > 6:#too many tries
 							return False
-						connection.write('?\n')
-						id_string = connection.readline()
+						connection.write('?\n')#ask id
+						id_string = connection.readline()#get id
 						print('motors: readline ' + port + ', ' + id_string.rstrip())
-						if id_string[:4] == '<id:':#~x~~x~?\n
+						if id_string[:4] == '<id:':
 							id_nr = int(id_string[4])
-							if id_nr == 4 and self.coil_enabled:
+							if id_nr == 4 and self.coil_enabled:#found coil
 								self.coil	= connection
 								print('motors: coil at ' + port)
 							else:
-								self.motors[id_nr - 1] = connection
+								self.motors[id_nr - 1] = connection#found motor
 								print('motors: motor ' + str(id_nr) + ' at ' + port)
 							if not None in self.motors and (self.coil is not None or not self.coil_enabled):
 								self.is_opened = True
@@ -115,19 +115,19 @@ class Motors(threading.Thread):
 			self.coil_write('k' + str(int(val)))
 	
 	def close(self):
-		for idx, motor in enumerate(self.motors):
+		for idx, motor in enumerate(self.motors):#close motors
 			if motor is not None:
 				if motor.isOpen():
-					self.motor_write(idx, 'sd0')
+					self.motor_write(idx, 'sd0')#stop motor
 					try:
 						motor.close()
 						print('motor ' + str(idx) + ' closed')
 					except:
 						print('motors: err motors close')
 		self.motors	= [None, None, None]
-		if self.coil is not None and self.coil.isOpen():
-			self.coil_write('d')
-			self.coil_write('ts')
+		if self.coil is not None and self.coil.isOpen():#close coil
+			self.coil_write('d')#discharge
+			self.coil_write('ts')#stop tribler
 			try:
 				self.coil.close()
 				print('coil closed')
@@ -149,11 +149,11 @@ class Motors(threading.Thread):
 					char	= self.motors[i].read(1)
 					if char == '\n':
 						#print(self.buffers[i])
-						if i == 1 and self.buffers[i][:3] == '<b:':
+						if i == 1 and self.buffers[i][:3] == '<b:':#start button
 							self.button = (self.buffers[i][3:4] == '1')
-						if i == 0 and self.buffers[i][:3] == '<p:':
+						if i == 0 and self.buffers[i][:3] == '<p:':#ball button
 							self.has_ball = (self.buffers[i][3:4] == '0')
-						elif self.buffers[i][:7] == '<stall:':
+						elif self.buffers[i][:7] == '<stall:':#motors stalled
 							self.stalled[i]	= (not self.buffers[i][7:8] == '0')
 							print('stall', i)
 						self.buffers[i]	= ''
@@ -174,8 +174,7 @@ class Motors(threading.Thread):
 						#print(self.coil_buffer)
 						if self.coil_buffer[:3] == '<b:':
 							has_ball	= self.coil_buffer[3:4] == '4'
-							#self.ball_status	= min(3, max(0, self.ball_status + (1 if has_ball else -1)))
-							self.has_ball	= has_ball#self.ball_status > 1
+							self.has_ball	= has_ball
 							print('motors: ball ' + str(has_ball))
 						self.coil_buffer	= ''
 					else:
@@ -207,7 +206,7 @@ class Motors(threading.Thread):
 		#self.read_buffer_coil()
 		
 	def run(self):
-		if self.open():
+		if self.open():#open serial connections
 			self.opened_status = '+'
 			print('motors: opened')
 		else:
@@ -215,12 +214,12 @@ class Motors(threading.Thread):
 			print('motors: opening failed')
 			self.close()
 			return
-		if self.coil is not None:
+		if self.coil is not None:#charge coils
 			self.coil_write('c')
-		while self.run_it:
+		while self.run_it:#ping 1 Hz
 			self.update()
 			if self.coil is not None:
-				self.coil_write('p')
+				self.coil_write('p')#automatic discharge prevention
 			time.sleep(1)
 		print('motors: close thread')
 		self.close()

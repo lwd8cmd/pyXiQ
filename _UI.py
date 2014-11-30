@@ -47,23 +47,23 @@ class UI(object):
 		
 		while running and self.logic.run_it:
 			#keylisteners
-			if no_key > 8:
+			if no_key > 8:#no key pressed for some time
 				speed	= 0
 				direction	= 0
 				omega	= 0
 			else:
 				no_key += 1
 			for event in pygame.event.get():
-				if event.type == pygame.QUIT:
+				if event.type == pygame.QUIT:#exit
 					running = False
 					break
 				elif event.type == pygame.KEYDOWN:
-					if event.key == pygame.K_ESCAPE:
+					if event.key == pygame.K_ESCAPE:#ESC=exit
 						running = False
 						break
-					if event.key == pygame.K_c:
+					if event.key == pygame.K_c:#c=kick
 						self.logic.motors.coil_kick(1000)
-					elif event.key == pygame.K_t:
+					elif event.key == pygame.K_t:#t=tribler toggle
 						self.logic.motors.coil_write('m')
 					elif event.key == pygame.K_SPACE:#SPACE==stop
 						self.logic.set_state(S_MANUAL)
@@ -82,7 +82,7 @@ class UI(object):
 								if self.logic.state is not S_MANUAL:
 									self.logic.set_state(S_MANUAL)
 								speed		= 1
-								direction	= -np.pi/2 + index * np.pi/4#self.logic.motors.DEG120
+								direction	= -np.pi/2 + index * np.pi/4
 								omega		= 0
 								no_key 		= 0
 						for index, item in enumerate(pygame_keys_rotate):#nm==rotate
