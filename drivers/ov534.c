@@ -124,7 +124,7 @@ static const struct v4l2_pix_format ov767x_mode[] = {
 };
 
 static const u8 qvga_rates[] = {125, 100, 75, 60, 50, 40, 30};
-static const u8 vga_rates[] = {60, 50, 40, 30, 15};
+static const u8 vga_rates[] = {68, 60, 50, 40, 30, 15};
 
 static const struct framerates ov772x_framerates[] = {
 	{ /* 320x240 */
@@ -769,6 +769,7 @@ static void set_frame_rate(struct gspca_dev *gspca_dev)
 	};
 	const struct rate_s *r;
 	static const struct rate_s rate_0[] = {	/* 640x480 */
+		{68, 0x00, 0xc1, 0x08},
 		{60, 0x01, 0xc1, 0x04},
 		{50, 0x01, 0x41, 0x02},
 		{40, 0x02, 0xc1, 0x04},
