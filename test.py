@@ -1,39 +1,41 @@
-#!/usr/bin/python
-#
-# python-v4l2capture
-#
-# This file is an example on how to capture a mjpeg video with
-# python-v4l2capture.
-#
-# 2009, 2010 Fredrik Portstrom
-#
-# I, the copyright holder of this file, hereby release it into the
-# public domain. This applies worldwide. In case this is not legally
-# possible: I grant anyone the right to use this work for any
-# purpose, without any conditions, unless such conditions are
-# required by law.
-
 import pyXiQ
 import numpy as np
-import matplotlib.pyplot as plt
+import cPickle as pickle
+import cv2
+
+color_file = 'colors.pkl'
+try:
+	with open(color_file, 'rb') as fh:
+		colors_lookup = pickle.load(fh)
+except:
+	colors_lookup	= np.zeros(0x1000000, dtype=np.uint8)
 
 cam = pyXiQ.Camera()# Open the camera
-print("cam")
-cam.setParamInt("exposure", 100000)
+if not cam.opened():
+	print("cam not found")
+	exit()
+cam.setParamInt("exposure", 30000)
+#cam.setParamInt("downsampling", 2)
+cam.setParamInt("auto_wb", 0)
+cam.setParamFloat("framerate", 60)
 cam.start()# Start recording
-print("start")
+cam.setTable(colors_lookup)
 
-while 1:
-	img = cam.image()# Capture image
-	asd = np.fromstring(img, dtype=np.uint8)
-	print(len(asd))
-	if (len(asd) == 1280*1024*3):
-		plt.imshow(asd.reshape((1024,1280,3)))
-	elif (len(asd) == 1280*1024):
-		plt.imshow(asd.reshape((1024,1280)))
-	else:
-		plt.imshow(asd[:1280*150].reshape((-1,1280)))
-	plt.show()
+test = cam.image()
+segmented = np.zeros((test.shape[0], test.shape[1]), dtype=np.uint8)
 
+cv2.namedWindow('tava')
+while True:
+	#image = cam.image()
+	cam.segment(segmented)
+	
+	cv2.imshow('tava', segmented*70)
+		
+	k = cv2.waitKey(1) & 0xff
+
+	if k == ord('q'):
+		break
+
+# When everything done, release the capture
 cam.close()# Close camera
-
+cv2.destroyAllWindows()
