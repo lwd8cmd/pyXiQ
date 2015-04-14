@@ -95,6 +95,7 @@ typedef struct {
 	unsigned short loc_phi[MAX_WIDTH * MAX_HEIGHT];//pixel location to angle lookup table
 	unsigned char *segmented;//segmented image buffer 0-9
 	unsigned char *bgr;//BGR buffer
+	unsigned short *pout;//Temp out buffer (for blobs)
 	int width, height, bpp;
 	unsigned char started;
 	
@@ -140,6 +141,7 @@ static int CameraInit(Camera *self, PyObject *args, PyObject *kwargs) {
 	self->height = 0;
 	self->segmented = NULL;
 	self->bgr = NULL;
+	self->pout = (unsigned short *) malloc(10000 * 9 * sizeof(unsigned short));
 	self->run_c = 0;
 	self->region_c = 0;
 	self->max_area = 0;
@@ -153,6 +155,22 @@ static int CameraInit(Camera *self, PyObject *args, PyObject *kwargs) {
 	}
 
 	return 0;
+}
+
+static void CameraDealloc(Camera *self) {
+	//exit, free resources
+	if (self->xiH) {
+		xiCloseDevice(self->xiH);
+		if (self->segmented != NULL) {
+			free(self->segmented);
+		}
+		if (self->bgr != NULL) {
+			free(self->bgr);
+		}
+		if (self->pout != NULL) {
+			free(self->pout);
+		}
+	}
 }
 
 static PyObject *CameraOpened(Camera *self) {
@@ -228,19 +246,6 @@ static PyObject *CameraSetLocations(Camera *self, PyObject *args) {
 	Py_DECREF(d_r);
 	Py_DECREF(d_phi);
 	Py_RETURN_NONE;
-}
-
-static void CameraDealloc(Camera *self) {
-	//exit, free resources
-	if (self->xiH) {
-		xiCloseDevice(self->xiH);
-		if (self->segmented != NULL) {
-			free(self->segmented);
-		}
-		if (self->bgr != NULL) {
-			free(self->bgr);
-		}
-	}
 }
 
 static void CameraRefreshSize(Camera *self) {
@@ -827,6 +832,7 @@ static PyObject *CameraGetBlobs(Camera *self, PyObject *args) {
 	
 	npy_intp dims[2] = {rows, cols};
 	PyArrayObject *outArray = (PyArrayObject *) PyArray_SimpleNewFromData(2, dims, NPY_UINT16, pout);
+	PyArray_ENABLEFLAGS(outArray, NPY_ARRAY_OWNDATA);
 	return PyArray_Return(outArray);
 }
 

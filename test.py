@@ -23,8 +23,8 @@ try:
 		cam.setLocations(loc_r, loc_phi)
 except:
 	print("Locations table missing")
-cam.setColorMinArea(1, 100)
-cam.setColorMinArea(2, 100)
+cam.setColorMinArea(1, 1)
+cam.setColorMinArea(2, 1)
 cam.start()# Start recording
 segmented_buffer = np.frombuffer(cam.getBuffer(), dtype=np.uint8).reshape(cam.shape())
 
@@ -36,14 +36,6 @@ while True:
 	img = np.copy(segmented_buffer)*127
 	if True and len(vals) > 0:
 		print("Obj 1", vals[0,0], vals[0,1])
-		img[vals[0,7]:vals[0,8],vals[0,5]] = 255
-		img[vals[0,7]:vals[0,8],vals[0,6]] = 255
-		img[vals[0,7],vals[0,5]:vals[0,6]] = 255
-		img[vals[0,8],vals[0,5]:vals[0,6]] = 255
-		
-	vals = cam.getBlobs(2)
-	if False and len(vals) > 0:
-		print("Obj 2", vals[0,3], vals[0,4])
 		img[vals[0,7]:vals[0,8],vals[0,5]] = 255
 		img[vals[0,7]:vals[0,8],vals[0,6]] = 255
 		img[vals[0,7],vals[0,5]:vals[0,6]] = 255
