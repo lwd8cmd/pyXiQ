@@ -10,15 +10,16 @@ if not cam.opened():
 	exit()
 cam.setInt("exposure", 10000)
 #cam.setInt("downsampling", 2)
-cam.setInt("auto_wb", 0)
+#cam.setInt("auto_wb", 0)
 #cam.setFloat("framerate", 30)
 try:
-	with open('colors.pkl', 'rb') as fh:
+	with open('../samples/calibration/colors.pkl', 'rb') as fh:
 		cam.setColors(pickle.load(fh))
 except:
 	print("Color table missing")
 try:
-	with open('locations.pkl', 'rb') as fh:
+	with open('../samples/calibration/locations.pkl', 'rb') as fh:
+		print("open")
 		loc_r, loc_phi = pickle.load(fh)
 		cam.setLocations(loc_r, loc_phi)
 except:
@@ -26,10 +27,11 @@ except:
 cam.setColorMinArea(1, 1)
 cam.setColorMinArea(2, 1)
 cam.start()# Start recording
-segmented_buffer = np.frombuffer(cam.getBuffer(), dtype=np.uint8).reshape(cam.shape())
+#segmented_buffer = np.frombuffer(cam.getBuffer(), dtype=np.uint8).reshape(cam.shape())
+segmented_buffer = cam.getBuffer()
 
 cv2.namedWindow('tava')
-while True:
+while False:
 	#image = cam.image()
 	cam.analyse()
 	vals = cam.getBlobs(1)
@@ -72,11 +74,13 @@ if False:
 	#image2 = cam.image()
 	#print(image2[1,1:-1,2].mean())
 	while True:
-		cv2.imshow('tava', cam.image())
+		img = cam.image()
+		print(img[:,:,0].std()**2+img[:,:,1].std()**2+img[:,:,2].std()**2)
+		cv2.imshow('tava', img[::2,::2,:])
 		if cv2.waitKey(1) & 0xff == ord('q'):
 			break
 			
-if False:
+if True:
 	cam.test()
 	
 # When everything done, release the capture

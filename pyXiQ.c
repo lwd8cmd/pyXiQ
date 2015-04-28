@@ -1,9 +1,7 @@
 /*
 Python wrapper for XIMEA camera, search for colored blobs
 Lauri Hamarik 2015
-SegEncodeRuns, SegConnectComponents, SegExtractRegions, SegSeparateRegions, SegSortRegions
-	taken from Firestarter git
-	https://github.com/jaantti/Firestarter/blob/master/2014/src/segmentation.cpp
+Blob finding methods (starts with Seg) taken from CMVision
 	
 Needs xiAPI library:
 http://www.ximea.com/support/wiki/apis/XIMEA_Linux_Software_Package
@@ -93,6 +91,7 @@ typedef struct {
 	unsigned char colors_lookup[0x1000000];//all possible bgr combinations lookup table
 	unsigned short loc_r[MAX_WIDTH * MAX_HEIGHT];//pixel location to distance lookup table
 	unsigned short loc_phi[MAX_WIDTH * MAX_HEIGHT];//pixel location to angle lookup table
+	unsigned char pixel_active[MAX_WIDTH * MAX_HEIGHT];//0=ignore in segmentation, 1=use pixel
 	unsigned char *segmented;//segmented image buffer 0-9
 	unsigned char *bgr;//BGR buffer
 	unsigned short *pout;//Temp out buffer (for blobs)
@@ -134,6 +133,7 @@ static int CameraInit(Camera *self, PyObject *args, PyObject *kwargs) {
 	xiSetParamInt(self->xiH, XI_PRM_RECENT_FRAME, 1);
 	//xiSetParamInt(self->xiH, XI_PRM_IMAGE_DATA_FORMAT, XI_RGB24);
 	xiSetParamInt(self->xiH, XI_PRM_IMAGE_DATA_FORMAT, XI_RAW8);
+	xiSetParamInt(self->xiH, XI_PRM_AUTO_WB , 0);
 	
 	self->started = 0;
 	self->bpp = 1;
@@ -152,6 +152,10 @@ static int CameraInit(Camera *self, PyObject *args, PyObject *kwargs) {
 		self->colors[i].num	= 0;
 		self->colors[i].min_area = MAX_INT;
 		self->colors[i].color = i;
+	}
+	
+	for (i=0; i<MAX_WIDTH * MAX_HEIGHT; i++) {
+		self->pixel_active[i] = 1;
 	}
 
 	return 0;
@@ -218,6 +222,26 @@ static PyObject *CameraSetColors(Camera *self, PyObject *args) {
 	Py_RETURN_NONE;
 }
 
+static PyObject *CameraSetActivePixels(Camera *self, PyObject *args) {
+	//set colortable
+	PyObject *arg1=NULL;
+	PyArrayObject *pixels=NULL;
+
+	if (!PyArg_ParseTuple(args, "O!", &PyArray_Type, &arg1)) return NULL;
+	pixels = (PyArrayObject*)PyArray_FROM_OTF(arg1, NPY_UINT8, NPY_ARRAY_IN_ARRAY);
+	if (pixels == NULL) {
+		Py_XDECREF(pixels);
+		return NULL;
+	}
+	
+	unsigned char *data = (unsigned char*)PyArray_DATA(pixels);
+	unsigned long size = min(MAX_WIDTH * MAX_HEIGHT, (unsigned long)PyArray_NBYTES(pixels));
+	memcpy(self->pixel_active, data, size);
+	
+	Py_DECREF(pixels);
+	Py_RETURN_NONE;
+}
+
 static PyObject *CameraSetLocations(Camera *self, PyObject *args) {
 	//set colortable
 	PyObject *arg1=NULL, *arg2=NULL;
@@ -235,12 +259,12 @@ static PyObject *CameraSetLocations(Camera *self, PyObject *args) {
 		return NULL;
 	}
 	
-	unsigned char *data_r = (unsigned char*)PyArray_DATA(d_r);
-	unsigned long size_r = min(MAX_WIDTH * MAX_HEIGHT, (unsigned long)PyArray_NBYTES(d_r));
+	unsigned short *data_r = (unsigned short*)PyArray_DATA(d_r);
+	unsigned long size_r = min(MAX_WIDTH * MAX_HEIGHT * sizeof(unsigned short), (unsigned long)PyArray_NBYTES(d_r));
 	memcpy(self->loc_r, data_r, size_r);
 	
-	unsigned char *data_phi = (unsigned char*)PyArray_DATA(d_phi);
-	unsigned long size_phi = min(MAX_WIDTH * MAX_HEIGHT, (unsigned long)PyArray_NBYTES(d_phi));
+	unsigned short *data_phi = (unsigned short*)PyArray_DATA(d_phi);
+	unsigned long size_phi = min(MAX_WIDTH * MAX_HEIGHT * sizeof(unsigned short), (unsigned long)PyArray_NBYTES(d_phi));
 	memcpy(self->loc_phi, data_phi, size_phi);
 	
 	Py_DECREF(d_r);
@@ -352,9 +376,13 @@ static PyObject *CameraGetBuffer(Camera *self, PyObject *args) {
 	//return segmented buffer (usage np.frombuffer(cam.getBuffer(), dtype=np.uint8).reshape(cam.shape()))
 	if (!self->started) Py_RETURN_NONE;
 	
-	int size = sizeof(char) * self->width * self->height;
+	/*int size = sizeof(char) * self->width * self->height;
 	
-	return PyBuffer_FromMemory(self->segmented, size);
+	return PyBuffer_FromMemory(self->segmented, size);*/
+	
+	npy_intp dims[2] = {self->height, self->width};
+	PyArrayObject *outArray = (PyArrayObject *) PyArray_SimpleNewFromData(2, dims, NPY_UINT8, self->segmented);
+	return PyArray_Return(outArray);
 }
 
 static void SegEncodeRuns(Camera *self) {
@@ -662,28 +690,36 @@ static PyObject *CameraAnalyse(Camera *self) {
 			int g;//green
 			int r;//red
 			
-			b = f[xy];
-			g = (f[xy-1]+f[xy+1]+f[xy-w]+f[xy+w]+2) >> 2;//left,right,up,down
-			r = (f[xy-w-1]+f[xy-w+1]+f[xy+w-1]+f[xy+w+1]+2) >> 2;//diagonal
-			self->segmented[xy] = self->colors_lookup[b + (g << 8) + (r << 16)];
+			if (self->pixel_active[xy]) {
+				b = f[xy];
+				g = (f[xy-1]+f[xy+1]+f[xy-w]+f[xy+w]+2) >> 2;//left,right,up,down
+				r = (f[xy-w-1]+f[xy-w+1]+f[xy+w-1]+f[xy+w+1]+2) >> 2;//diagonal
+				self->segmented[xy] = self->colors_lookup[b + (g << 8) + (r << 16)];
+			}
 			
 			xy += 1;
-			b = (f[xy-1]+f[xy+1]+1) >> 1;//left,right
-			g = f[xy];
-			r = (f[xy-w]+f[xy+w]+1) >> 1;//up,down
-			self->segmented[xy] = self->colors_lookup[b + (g << 8) + (r << 16)];
+			if (self->pixel_active[xy]) {
+				b = (f[xy-1]+f[xy+1]+1) >> 1;//left,right
+				g = f[xy];
+				r = (f[xy-w]+f[xy+w]+1) >> 1;//up,down
+				self->segmented[xy] = self->colors_lookup[b + (g << 8) + (r << 16)];
+			}
 			
 			xy += w - 1;
-			b = (f[xy-w] + f[xy+w]+1) >> 1;//up,down
-			g = f[xy];
-			r = (f[xy-1]+f[xy+1]+1) >> 1;//left,right
-			self->segmented[xy] = self->colors_lookup[b + (g << 8) + (r << 16)];
+			if (self->pixel_active[xy]) {
+				b = (f[xy-w] + f[xy+w]+1) >> 1;//up,down
+				g = f[xy];
+				r = (f[xy-1]+f[xy+1]+1) >> 1;//left,right
+				self->segmented[xy] = self->colors_lookup[b + (g << 8) + (r << 16)];
+			}
 			
 			xy += 1;
-			b = (f[xy-w-1]+f[xy-w+1]+f[xy+w-1]+f[xy+w+1]+2) >> 2;//diagonal
-			g = (f[xy-1]+f[xy+1]+f[xy-w]+f[xy+w]+2) >> 2;//left,right,up,down
-			r = f[xy];
-			self->segmented[xy] = self->colors_lookup[b + (g << 8) + (r << 16)];
+			if (self->pixel_active[xy]) {
+				b = (f[xy-w-1]+f[xy-w+1]+f[xy+w-1]+f[xy+w+1]+2) >> 2;//diagonal
+				g = (f[xy-1]+f[xy+1]+f[xy-w]+f[xy+w]+2) >> 2;//left,right,up,down
+				r = f[xy];
+				self->segmented[xy] = self->colors_lookup[b + (g << 8) + (r << 16)];
+			}
 		}
 	}
 	
@@ -798,7 +834,7 @@ static PyObject *CameraGetParamString(Camera *self, PyObject *args) {
 }
 
 static PyObject *CameraGetBlobs(Camera *self, PyObject *args) {
-	//get blobs for color, return numpy array [[x1,x2,y1,y2,area,cen_x,cen_y],...]
+	//get blobs for color, return numpy array [[distance,angle,area,cen_x,cen_y,x1,x2,y1,y2],...]
 	int color;
 	if (!PyArg_ParseTuple(args, "i", &color)) {
 		return NULL;
@@ -838,7 +874,7 @@ static PyObject *CameraGetBlobs(Camera *self, PyObject *args) {
 
 static PyObject *CameraTest(Camera *self) {
 	//test
-	printf("x0 y0 r %hu phi %hu \n", self->loc_r[2000], self->loc_phi[2000]);
+	printf("x0 y0 r %hu phi %hu \n", self->loc_r[0], self->loc_phi[0]);
 	
 	Py_RETURN_NONE;
 }
@@ -895,6 +931,9 @@ static PyMethodDef Camera_methods[] = {
 	{"setColors", (PyCFunction)CameraSetColors, METH_VARARGS,
 		"setColors(nparr)\n\n"
 		"Set color lookup table."},
+	{"setPixels", (PyCFunction)CameraSetActivePixels, METH_VARARGS,
+		"setPixels(nparr)\n\n"
+		"Set active pixels table."},
 	{"setLocations", (PyCFunction)CameraSetLocations, METH_VARARGS,
 		"setLocations(nparr distances, nparr angles)\n\n"
 		"Set location lookup table."},
