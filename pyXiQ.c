@@ -778,9 +778,11 @@ static PyObject *CameraSetParamString(Camera *self, PyObject *args) {
 		char *val;
 		int size;
 
-		if (!PyArg_ParseTuple(args, "ssi", &param, &val, &size)) {
+		if (!PyArg_ParseTuple(args, "ss", &param, &val)) {
 			return NULL;
-		}	
+		}
+		
+		for(size=0; val[size]!='\0'; ++size);
 	
 		xiSetParamString(self->xiH, param, val, size);
 	}
@@ -820,17 +822,17 @@ static PyObject *CameraGetParamFloat(Camera *self, PyObject *args) {
 static PyObject *CameraGetParamString(Camera *self, PyObject *args) {
 	//get camera param
 	char *val = 0;
+	int size = 1;
 	if (self->xiH) {
 		char *param;
-		int size;
 
-		if (!PyArg_ParseTuple(args, "si", &param, &size)) {
+		if (!PyArg_ParseTuple(args, "s", &param, &size)) {
 			return NULL;
 		}	
 	
 		xiGetParamString(self->xiH, param, &val, size);
 	}
-	return Py_BuildValue("s", val);
+	return Py_BuildValue("s#", val, size);
 }
 
 static PyObject *CameraGetBlobs(Camera *self, PyObject *args) {

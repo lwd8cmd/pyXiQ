@@ -184,7 +184,7 @@ if conf == 'y':
 	
 	ys = ys - popt[0]
 	xs = xs - popt[1]
-	fiis = ((np.arctan2(ys, xs)%(2*np.pi))/(2*np.pi)*65535).astype(np.uint16)
+	fiis = ((np.arctan2(ys, xs)%(2*np.pi))/(2*np.pi)*65536).clip(min=0, max=65535).astype(np.uint16)
 	rs = (xs**2 + ys**2)**0.5
 	distances = (popt[2]*rs**1 + popt[3]*rs**4 + popt[4]*rs**10).clip(min=0, max=65535).astype(np.uint16)
 	

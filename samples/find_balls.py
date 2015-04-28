@@ -37,7 +37,7 @@ while True:
 	img = np.copy(segmented_buffer)*127
 	if len(blobs) > 0:
 		ball = blobs[0]
-		print('Largest ball d={r: >5}mm, fii={f: >3}deg, area={a: >5}px, x={x: >4}, y={y: >4}'.format(r=ball[0], f=int(round(ball[1]*360.0/65535.0)), a=ball[2], x=ball[3], y=ball[4]))
+		print('Largest ball d={r: >5}mm, fii={f: >3}deg, area={a: >5}px, x={x: >4}, y={y: >4}'.format(r=ball[0], f=int(round(ball[1]*360.0/65536.0)), a=ball[2], x=ball[3], y=ball[4]))
 		#print("Obj 1", blobs[0,0], blobs[0,1])
 		#draw white bounding box
 		img[blobs[0,7]:blobs[0,8],blobs[0,5]:blobs[0,5]+2] = 255#left line
