@@ -27,10 +27,11 @@ img[active_pixels == 0] = [0,0,0]
 print("Press 'q' to quit")
 while True:
 	cv2.imshow('tava', img[::2,::2])
-	if cv2.waitKey(1) & 0xff == ord('q'):
+	k = cv2.waitKey(1) & 0xff
+	if k == ord('q'):
+		print('Quit without saving')
 		break
-
-cv2.destroyAllWindows()
-with open('calibration/pixels.pkl', 'wb') as fh:
-	pickle.dump(active_pixels, fh, -1)
-	print('saved')
+	elif k == ord('s'):
+		with open('calibration/pixels.pkl', 'wb') as fh:
+			pickle.dump(active_pixels, fh, -1)
+			print('saved')

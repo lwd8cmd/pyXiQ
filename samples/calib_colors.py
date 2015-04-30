@@ -122,5 +122,3 @@ while True:
 	elif k >= ord('0') and k <= ord('9'):
 		color = k - ord('0')
 		print('selected color ' + str(color))
-
-cv2.destroyAllWindows()

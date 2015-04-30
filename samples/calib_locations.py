@@ -152,18 +152,6 @@ for i in xrange(len(points)):
 print('\\----+------------------+-------------------/')
 
 if 1:
-	#show fitted points in the field
-	for p in cmToPx(rps):
-		cv2.circle(field, (p[1], p[0]), 5, (0,0,255), -1)
-	print('press q to exit view')
-	while True:
-		cv2.imshow('valjak', field)
-		k = cv2.waitKey(1) & 0xff
-		if k == ord('q'):
-			break
-cv2.destroyAllWindows()
-
-if 1:
 	#show fitted curve (real distance vs pixel distance)
 	ys = (points[:,0]**2+points[:,1]**2)**0.5
 	xs = ((points_selected[:,0] - popt[0])**2 + (points_selected[:,1] - popt[1])**2)**0.5
@@ -176,18 +164,26 @@ if 1:
 	plt.xlabel('pixel distance')
 	plt.ylabel('real distance')
 	plt.show()
-
-#save?
-conf = raw_input('Save conf? (y)')
-if conf == 'y':
-	ys, xs = np.mgrid[:h,:w]
 	
-	ys = ys - popt[0]
-	xs = xs - popt[1]
-	fiis = ((np.arctan2(ys, xs)%(2*np.pi))/(2*np.pi)*65536).clip(min=0, max=65535).astype(np.uint16)
-	rs = (xs**2 + ys**2)**0.5
-	distances = (popt[2]*rs**1 + popt[3]*rs**4 + popt[4]*rs**10).clip(min=0, max=65535).astype(np.uint16)
+if 1:
+	#show fitted points in the field
+	for p in cmToPx(rps):
+		cv2.circle(field, (p[1], p[0]), 5, (0,0,255), -1)
+	print('press q to quit, s to save')
+	while True:
+		cv2.imshow('valjak', field)
+		k = cv2.waitKey(1) & 0xff
+		if k == ord('q'):
+			break
+		elif k == ord('s'):
+			ys, xs = np.mgrid[:h,:w]
 	
-	with open('calibration/locations.pkl', 'wb') as fh:
-		pickle.dump((distances, fiis), fh, -1)
-	
+			ys = ys - popt[0]
+			xs = xs - popt[1]
+			fiis = ((np.arctan2(ys, xs)%(2*np.pi))/(2*np.pi)*65536).clip(min=0, max=65535).astype(np.uint16)
+			rs = (xs**2 + ys**2)**0.5
+			distances = (popt[2]*rs**1 + popt[3]*rs**4 + popt[4]*rs**10).clip(min=0, max=65535).astype(np.uint16)
+			
+			with open('calibration/locations.pkl', 'wb') as fh:
+				pickle.dump((distances, fiis), fh, -1)
+			print('saved')

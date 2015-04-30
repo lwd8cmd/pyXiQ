@@ -10,6 +10,6 @@ cam.start()
 
 print("Press 'q' to quit")
 while True:
-	cv2.imshow('tava', cam.image())
+	cv2.imshow('tava', cam.image()[::2,::2])
 	if cv2.waitKey(1) & 0xff == ord('q'):
 		break
