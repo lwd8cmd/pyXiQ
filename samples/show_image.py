@@ -17,8 +17,8 @@ while True:
 	if 1:#print image std for focus calib
 		h, w, _ = img.shape
 		pxs = img[h//4:h//4*3,w//4:w//4*3,:]
-		print(pxs[:,:,0].std()**2+pxs[:,:,1].std()**2+pxs[:,:,2].std()**2)
-	cv2.imshow('tava', img[::2,::2])
+		#print(pxs[:,:,0].std()**2+pxs[:,:,1].std()**2+pxs[:,:,2].std()**2)
+	cv2.imshow('tava', img[::2,::-2])
 	k = cv2.waitKey(1) & 0xff
 	if k == ord('q'):
 		break
