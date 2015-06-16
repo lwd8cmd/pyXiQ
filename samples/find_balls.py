@@ -25,7 +25,7 @@ try:
 		cam.setPixels(active_pixels)
 except:
 	print("Active pixels table missing")
-cam.setColorMinArea(1, 30)#find blobs having color 1 with min area 30
+cam.setColorMinArea(1, 10)#find blobs having color 1 with min area 30
 cam.start()# Start recording
 segmented_buffer = cam.getBuffer()#get buffer containing thresholded image
 

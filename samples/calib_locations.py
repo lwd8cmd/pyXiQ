@@ -8,12 +8,12 @@ import cPickle as pickle
 import pyXiQ
 
 def cmToPx(arr):#convert real coordinates to pixel coordinates
-	return (arr*194.5/2950.0 + 30.0).astype(np.uint16)
+	return (arr*194.5/2950.0 + 30.0).astype(np.int16)
 	
-def pxToCm(p, y0, x0, a, b, c):#convert pixel coordinates to real coordinates
-	ys = p[:,0] - y0
+def pxToCm(p, y0, x0, a, b, c, fii0):#convert pixel coordinates to real coordinates
+	ys = -(p[:,0] - y0)
 	xs = p[:,1] - x0
-	fiis = np.arctan2(ys, xs)
+	fiis = np.arctan2(ys, xs) + fii0
 	rs = (xs**2 + ys**2)**0.5
 	distances = a*rs**1 + b*rs**4 + c*rs**10
 	
@@ -29,29 +29,49 @@ y = 3100.0 - 3*l
 d = 800.0 - l
 g = (y - 350.0 - 2*500.0 + l) / 2
 gate = 700.0 + 2*20.0
-
-points = np.array([
-	[0,		0],
-	[y,		0],
-	[0,		x/2],
-	[y,		x/2],
-	[0,		x],
-	[y,		x],
+if 0:#calibrate using field edges
+	points = np.array([
+		[0,		0],
+		[y,		0],
+		[0,		x/2],
+		[y,		x/2],
+		[0,		x],
+		[y,		x],
+		
+		[g,		0],
+		[y-g,	0],
+		[g,		x],
+		[y-g,	x],
+		
+		[(y-d)/2,	x/2],
+		[(y+d)/2,	x/2],
+		
+		[(y-gate)/2,	-l*1.5],
+		[(y+gate)/2,	-l*1.5],
+		
+		[0,	140.0]
+	])
+	px0 = 0
+	py0 = 0
+else:
 	
-	[g,		0],
-	[y-g,	0],
-	[g,		x],
-	[y-g,	x],
-	
-	[(y-d)/2,	x/2],
-	[(y+d)/2,	x/2],
-	
-	[(y-gate)/2,	-l*1.5],
-	[(y+gate)/2,	-l*1.5],
-	
-	[0,	140.0]
-])
-points_tuple = [(p[1], p[0]) for p in cmToPx(points)]
+	points = np.array([
+		[-1500,	0],
+		[-1000,	0],
+		[-500,	0],
+		[500,	0],
+		[1000,	0],
+		[1500,	0],
+		[0,	-1500],
+		[0,	-1000],
+		[0,	-500],
+		[0,	500],
+		[0,	1000],
+		[0,	1500]
+	])
+	px0 = 146
+	py0 = 97
+points_tuple = [(p[1] + px0, p[0] + py0) for p in cmToPx(points)]
 curpoint = 0
 	
 #get cam image
@@ -62,7 +82,7 @@ if not cam.opened():
 cam.setInt("exposure", 10000)
 cam.start()# Start recording
 cam_img = cam.image()
-cam.stop()
+
 #cam_img = np.array(Image.open('servas.jpg'))[::-1,::-1,::-1]
 downsample = 4
 upsample = 4
@@ -86,13 +106,12 @@ def choose_loc(event, _x, _y, flags, param):
 			
 cv2.setMouseCallback('pilt', choose_loc)
 
-if 1:#calibrate from the image
+if 0:#calibrate from the image
 	#select calibration points in the image
 	points_selected = []
 	zoom = False
-	print('Press q to quit')
+	print('Press q to quit, b to zoom out')
 	while curpoint < len(points):
-		cv2.imshow('pilt', img)
 		cv2.circle(field, points_tuple[curpoint], 5, (0,0,255), -1)
 		cv2.imshow('valjak', field)
 		print('select point x={p[1]} mm, y={p[0]} mm'.format(p=points[curpoint]))
@@ -103,17 +122,23 @@ if 1:#calibrate from the image
 					points_selected.append([click_yx[0] // upsample + max(0, y-dh), click_yx[1] // upsample + max(0, x-dw)])
 					cv2.circle(field, points_tuple[curpoint], 5, (128,128,128), -1)
 					curpoint += 1
-					img = cam_img[::downsample,::downsample]
 				else:
 					zoom = True
 					y = click_yx[0] * downsample
 					x = click_yx[1] * downsample
-					img = scipy.ndimage.zoom(cam_img[max(0, y-dh):min(h, y+dh),max(0, x-dw):min(w, x+dw)], (upsample, upsample, 1))
 				click_yx = None
 				break
+			cam_img = cam.image()
+			if zoom:
+				img = scipy.ndimage.zoom(cam_img[max(0, y-dh):min(h, y+dh),max(0, x-dw):min(w, x+dw)], (upsample, upsample, 1))
+			else:
+				img = cam_img[::downsample,::downsample]
+			cv2.imshow('pilt', img)
 			k = cv2.waitKey(1) & 0xff
 			if k == ord('q'):
 				exit()
+			elif k == ord('b'):
+				zoom = False
 else:#presaved points
 	points_selected = [
 		[512, 640],
@@ -132,12 +157,26 @@ else:#presaved points
 		[821, 627],
 		[512, 667]
 	]
+	points_selected = [
+	   [713, 630],
+       [669, 627],
+       [597, 616],
+       [336, 609],
+       [257, 605],
+       [206, 607],
+       [480, 388],
+       [479, 426],
+       [467, 495],
+       [474, 771],
+       [488, 863],
+       [492, 985]]
 		
 #fit parameters		
 points_selected = np.array(points_selected)
-p0 = [h/2, w/2, 5e-1, 1e-9, 1e-25]
+print('Points: ', points_selected)
+p0 = [h/2, w/2, 5e-1, 1e-9, 1e-25, 0.0]
 popt, pcov = curve_fit(pxToCm, points_selected, points.flatten(), p0=p0)
-rps = pxToCm(points_selected, popt[0],popt[1],popt[2],popt[3],popt[4]).reshape(points.shape)
+rps = pxToCm(points_selected, popt[0],popt[1],popt[2],popt[3],popt[4],popt[5]).reshape(points.shape)
 print('Fitting parameters:', popt)
 print('Mean error: {merr} mm'.format(merr=np.abs(((rps-points)[:,0]**2+(rps-points)[:,1]**2)**0.5).mean()))
 	
@@ -159,7 +198,7 @@ if 1:
 	xs2 = np.linspace(0, 600, 100)
 	ps = np.repeat(xs2, 2).reshape((-1,2))+popt[0]
 	ps[:,1] = popt[1]
-	ys2 = pxToCm(ps, popt[0],popt[1],popt[2],popt[3],popt[4])[0::2]
+	ys2 = pxToCm(ps, popt[0],popt[1],popt[2],popt[3],popt[4],popt[5])[0::2]
 	plt.plot(xs2, ys2, '-')
 	plt.xlabel('pixel distance')
 	plt.ylabel('real distance')
@@ -168,7 +207,7 @@ if 1:
 if 1:
 	#show fitted points in the field
 	for p in cmToPx(rps):
-		cv2.circle(field, (p[1], p[0]), 5, (0,0,255), -1)
+		cv2.circle(field, (p[1] + px0, p[0] + py0), 5, (0,0,255), -1)
 	print('press q to quit, s to save')
 	while True:
 		cv2.imshow('valjak', field)
@@ -180,10 +219,11 @@ if 1:
 	
 			ys = ys - popt[0]
 			xs = xs - popt[1]
-			fiis = ((np.arctan2(ys, xs)%(2*np.pi))/(2*np.pi)*65536).clip(min=0, max=65535).astype(np.uint16)
+			fiis = (((-np.arctan2(ys, xs)-popt[5])%(2*np.pi))/(2*np.pi)*65536).clip(min=0, max=65535).astype(np.uint16)
 			rs = (xs**2 + ys**2)**0.5
 			distances = (popt[2]*rs**1 + popt[3]*rs**4 + popt[4]*rs**10).clip(min=0, max=65535).astype(np.uint16)
 			
 			with open('calibration/locations.pkl', 'wb') as fh:
 				pickle.dump((distances, fiis), fh, -1)
 			print('saved')
+			break

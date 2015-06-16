@@ -20,7 +20,7 @@ ys, xs = np.mgrid[:h,:w]
 active_pixels = np.ones((h, w), dtype=np.uint8)
 
 #set some pixels inactive
-active_pixels[(ys-512)**2+(xs-640)**2 > 400**2] = 0#pixels which are outside the circle r=400 (x=640, y=512)
+#active_pixels[(ys-512)**2+(xs-640)**2 > 400**2] = 0#pixels which are outside the circle r=400 (x=640, y=512)
 
 #show frame where inactive pixels are removed
 img[active_pixels == 0] = [0,0,0]

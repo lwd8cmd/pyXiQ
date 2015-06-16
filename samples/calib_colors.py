@@ -23,7 +23,7 @@ if not cam.opened():
 
 #camera settings
 cam.setInt("exposure", 10000)
-cam.setInt("downsampling", 2)
+#cam.setInt("downsampling", 2)
 cam.setInt("auto_wb", 0)
 #cam.setFloat("framerate", 30)
 cam.start()# Start recording
